@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from .api import WhisperAPIError, WhisperClient
 from .config import Config
 from .hotkey import HotkeyManager
+from .icons import get_close_icon, get_copy_icon, get_eye_icon, get_eye_off_icon
 from .recorder import AudioRecorder
 from .typer import Typer
 from .waveform import WaveformWidget
@@ -108,6 +109,14 @@ class RecordingWindow(QWidget):
         status_layout = QHBoxLayout(status_widget)
         status_layout.setContentsMargins(4, 0, 4, 0)
 
+        # Version number in top left
+        version_label = QLabel("v0.1.0")
+        version_label.setStyleSheet("""
+            color: #555;
+            font-size: 9px;
+        """)
+        status_layout.addWidget(version_label)
+
         self.status_label = QLabel("Listening...")
         self.status_label.setStyleSheet("""
             color: #888;
@@ -126,21 +135,19 @@ class RecordingWindow(QWidget):
         """)
         status_layout.addWidget(hints)
 
-        # Close button - same vibrant green as Save button
-        self.close_btn = QPushButton("Close")
-        self.close_btn.setFixedHeight(26)
+        # Close button with power icon
+        self.close_btn = QPushButton()
+        self.close_btn.setIcon(get_close_icon(18, "#84cc16"))
+        self.close_btn.setFixedSize(32, 32)
+        self.close_btn.setToolTip("Close")
         self.close_btn.setStyleSheet("""
             QPushButton {
-                background-color: #84cc16;
-                color: #000;
-                border: none;
-                border-radius: 4px;
-                font-size: 11px;
-                font-weight: bold;
-                padding: 4px 12px;
+                background-color: rgba(132, 204, 22, 0.1);
+                border: 1px solid rgba(132, 204, 22, 0.3);
+                border-radius: 6px;
             }
             QPushButton:hover {
-                background-color: #9ae62a;
+                background-color: rgba(132, 204, 22, 0.2);
             }
         """)
         self.close_btn.clicked.connect(self.cancel_requested.emit)
@@ -231,15 +238,15 @@ class RecordingWindow(QWidget):
         url_row = QHBoxLayout()
         self.api_url_input = QLineEdit(self.config.api_url)
         self.api_url_input.setPlaceholderText("https://api.openai.com/v1/audio/transcriptions")
-        self.url_copy_btn = QPushButton("⧉")  # Two overlapping squares
+        self.url_copy_btn = QPushButton()
+        self.url_copy_btn.setIcon(get_copy_icon(16, "#888888"))
+        self.url_copy_btn.setFixedSize(28, 28)
         self.url_copy_btn.setToolTip("Copy to clipboard")
         self.url_copy_btn.setStyleSheet("""
             QPushButton {
                 background-color: rgba(255, 255, 255, 0.1);
                 border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 3px;
-                font-size: 14px;
-                padding: 4px 8px;
+                border-radius: 4px;
             }
             QPushButton:hover {
                 background-color: rgba(132, 204, 22, 0.2);
@@ -273,16 +280,16 @@ class RecordingWindow(QWidget):
                 font-family: monospace;
             }
         """)
-        # Eye icon button for show/hide - simple outline
-        self.key_visible_btn = QPushButton("◉")  # Simple eye symbol
+        # Eye icon button for show/hide
+        self.key_visible_btn = QPushButton()
+        self.key_visible_btn.setIcon(get_eye_icon(16, "#888888"))
+        self.key_visible_btn.setFixedSize(28, 28)
         self.key_visible_btn.setToolTip("Show/hide API key")
         self.key_visible_btn.setStyleSheet("""
             QPushButton {
                 background-color: rgba(255, 255, 255, 0.1);
                 border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 3px;
-                font-size: 14px;
-                padding: 4px 8px;
+                border-radius: 4px;
             }
             QPushButton:hover {
                 background-color: rgba(132, 204, 22, 0.2);
@@ -290,16 +297,16 @@ class RecordingWindow(QWidget):
             }
         """)
         self.key_visible_btn.clicked.connect(self._toggle_key_visibility)
-        # Copy icon button - two overlapping squares
-        self.key_copy_btn = QPushButton("⧉")
+        # Copy icon button
+        self.key_copy_btn = QPushButton()
+        self.key_copy_btn.setIcon(get_copy_icon(16, "#888888"))
+        self.key_copy_btn.setFixedSize(28, 28)
         self.key_copy_btn.setToolTip("Copy to clipboard")
         self.key_copy_btn.setStyleSheet("""
             QPushButton {
                 background-color: rgba(255, 255, 255, 0.1);
                 border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 3px;
-                font-size: 14px;
-                padding: 4px 8px;
+                border-radius: 4px;
             }
             QPushButton:hover {
                 background-color: rgba(132, 204, 22, 0.2);
@@ -436,9 +443,9 @@ class RecordingWindow(QWidget):
         self._key_visible = not self._key_visible
         self._update_api_key_display()
         if self._key_visible:
-            self.key_visible_btn.setText("○")  # Open/empty circle = hidden
+            self.key_visible_btn.setIcon(get_eye_off_icon(16, "#888888"))
         else:
-            self.key_visible_btn.setText("◉")  # Filled circle = visible
+            self.key_visible_btn.setIcon(get_eye_icon(16, "#888888"))
 
     def _copy_to_clipboard(self, text: str) -> None:
         """Copy text to clipboard."""
