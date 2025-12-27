@@ -7,11 +7,13 @@
    ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝      ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝
 </pre>
 
-SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
+Turbo Whisper is a SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)
+
+<img width="1457" height="498" alt="image" src="https://github.com/user-attachments/assets/df82d107-d528-4329-97d0-6fb4cd7826d7" />
 
 ## Features
 
