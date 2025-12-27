@@ -61,6 +61,10 @@ ICON_CHEVRON_UP = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="
   <path d="m18 15-6-6-6 6"/>
 </svg>'''
 
+ICON_CHECK = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M20 6 9 17l-5-5"/>
+</svg>'''
+
 
 def get_close_icon(size: int = 20, color: str = "#888888") -> QIcon:
     """Get the power/close icon."""
@@ -90,3 +94,8 @@ def get_chevron_down_icon(size: int = 20, color: str = "#888888") -> QIcon:
 def get_chevron_up_icon(size: int = 20, color: str = "#888888") -> QIcon:
     """Get the chevron-up icon."""
     return _svg_to_icon(ICON_CHEVRON_UP, size, color)
+
+
+def get_check_icon(size: int = 20, color: str = "#888888") -> QIcon:
+    """Get the check/tick icon."""
+    return _svg_to_icon(ICON_CHECK, size, color)

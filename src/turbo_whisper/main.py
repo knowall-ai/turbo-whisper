@@ -24,6 +24,7 @@ from .api import WhisperAPIError, WhisperClient
 from .config import Config
 from .hotkey import HotkeyManager
 from .icons import (
+    get_check_icon,
     get_chevron_down_icon,
     get_chevron_up_icon,
     get_close_icon,
@@ -102,6 +103,39 @@ class RecordingWindow(QWidget):
         layout.setSpacing(4)
         container_layout.addWidget(content_frame)
 
+        # Top bar - version left, close button right
+        top_bar = QWidget()
+        top_bar.setStyleSheet("background: transparent;")
+        top_bar_layout = QHBoxLayout(top_bar)
+        top_bar_layout.setContentsMargins(8, 4, 8, 0)
+
+        # Version number in top left
+        version_label = QLabel("v0.1.0")
+        version_label.setStyleSheet("color: #555; font-size: 9px;")
+        top_bar_layout.addWidget(version_label)
+
+        top_bar_layout.addStretch()
+
+        # Close button with power icon in top right
+        self.close_btn = QPushButton()
+        self.close_btn.setIcon(get_close_icon(16, "#84cc16"))
+        self.close_btn.setFixedSize(28, 28)
+        self.close_btn.setToolTip("Close")
+        self.close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(132, 204, 22, 0.1);
+                border: 1px solid rgba(132, 204, 22, 0.3);
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: rgba(132, 204, 22, 0.2);
+            }
+        """)
+        self.close_btn.clicked.connect(self.cancel_requested.emit)
+        top_bar_layout.addWidget(self.close_btn)
+
+        layout.addWidget(top_bar)
+
         # Waveform - use the bright KnowAll lime green (#84cc16)
         self.waveform = WaveformWidget(
             color="#84cc16",  # Same bright green as buttons
@@ -115,14 +149,6 @@ class RecordingWindow(QWidget):
         status_widget.setStyleSheet("background: transparent;")
         status_layout = QHBoxLayout(status_widget)
         status_layout.setContentsMargins(4, 0, 4, 0)
-
-        # Version number in top left
-        version_label = QLabel("v0.1.0")
-        version_label.setStyleSheet("""
-            color: #555;
-            font-size: 9px;
-        """)
-        status_layout.addWidget(version_label)
 
         self.status_label = QLabel("Listening...")
         self.status_label.setStyleSheet("""
@@ -141,24 +167,6 @@ class RecordingWindow(QWidget):
             font-size: 10px;
         """)
         status_layout.addWidget(hints)
-
-        # Close button with power icon
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(get_close_icon(18, "#84cc16"))
-        self.close_btn.setFixedSize(32, 32)
-        self.close_btn.setToolTip("Close")
-        self.close_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(132, 204, 22, 0.1);
-                border: 1px solid rgba(132, 204, 22, 0.3);
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: rgba(132, 204, 22, 0.2);
-            }
-        """)
-        self.close_btn.clicked.connect(self.cancel_requested.emit)
-        status_layout.addWidget(self.close_btn)
 
         # Animated status timer
         self._status_dots = 0
@@ -257,7 +265,7 @@ class RecordingWindow(QWidget):
                 border-color: rgba(132, 204, 22, 0.3);
             }
         """)
-        self.url_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self.api_url_input.text()))
+        self.url_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self.api_url_input.text(), self.url_copy_btn))
         url_row.addWidget(self.api_url_input)
         url_row.addWidget(self.url_copy_btn)
         settings_layout.addWidget(url_label)
@@ -317,7 +325,7 @@ class RecordingWindow(QWidget):
                 border-color: rgba(132, 204, 22, 0.3);
             }
         """)
-        self.key_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self._actual_api_key))
+        self.key_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self._actual_api_key, self.key_copy_btn))
         key_row.addWidget(self.api_key_input)
         key_row.addWidget(self.key_visible_btn)
         key_row.addWidget(self.key_copy_btn)
@@ -431,9 +439,12 @@ class RecordingWindow(QWidget):
         self.api_key_input.blockSignals(True)
         if self._key_visible:
             self.api_key_input.setText(self._actual_api_key)
+            self.api_key_input.setReadOnly(False)
         else:
-            # Show asterisks for each character
-            self.api_key_input.setText("*" * len(self._actual_api_key) if self._actual_api_key else "")
+            # Show asterisks for each character (use bullet character for better display)
+            mask = "●" * len(self._actual_api_key) if self._actual_api_key else ""
+            self.api_key_input.setText(mask)
+            self.api_key_input.setReadOnly(True)  # Can't edit while hidden
         self.api_key_input.blockSignals(False)
 
     def _on_api_key_changed(self, text: str) -> None:
@@ -451,10 +462,16 @@ class RecordingWindow(QWidget):
         else:
             self.key_visible_btn.setIcon(get_eye_icon(16, "#888888"))
 
-    def _copy_to_clipboard(self, text: str) -> None:
-        """Copy text to clipboard."""
+    def _copy_to_clipboard(self, text: str, button: QPushButton = None) -> None:
+        """Copy text to clipboard and show feedback on button."""
         clipboard = QApplication.clipboard()
         clipboard.setText(text)
+
+        # Show "Copied" feedback on button if provided
+        if button:
+            original_icon = button.icon()
+            button.setIcon(get_check_icon(16, "#84cc16"))
+            QTimer.singleShot(1500, lambda: button.setIcon(original_icon))
 
     def _on_sensitivity_changed(self, value: int) -> None:
         """Handle sensitivity slider change - update in real-time."""
