@@ -231,21 +231,37 @@ class RecordingWindow(QWidget):
         url_row = QHBoxLayout()
         self.api_url_input = QLineEdit(self.config.api_url)
         self.api_url_input.setPlaceholderText("https://api.openai.com/v1/audio/transcriptions")
-        self.url_copy_btn = QPushButton("Copy")
-        self.url_copy_btn.setStyleSheet(small_btn_style)
+        self.url_copy_btn = QPushButton("📋")
+        self.url_copy_btn.setToolTip("Copy to clipboard")
+        self.url_copy_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 3px;
+                font-size: 14px;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: rgba(132, 204, 22, 0.2);
+                border-color: rgba(132, 204, 22, 0.3);
+            }
+        """)
         self.url_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self.api_url_input.text()))
         url_row.addWidget(self.api_url_input)
         url_row.addWidget(self.url_copy_btn)
         settings_layout.addWidget(url_label)
         settings_layout.addLayout(url_row)
 
-        # API Key - use PasswordEchoOnEdit for bullet display
+        # API Key - store actual value separately and display asterisks
         key_label = QLabel("API Key")
         key_row = QHBoxLayout()
-        self.api_key_input = QLineEdit(self.config.api_key)
-        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._actual_api_key = self.config.api_key
+        self.api_key_input = QLineEdit()
+        self._key_visible = False
+        self._update_api_key_display()
         self.api_key_input.setPlaceholderText("sk-...")
-        # Style to ensure bullets show
+        self.api_key_input.textChanged.connect(self._on_api_key_changed)
+        # Style to ensure asterisks show clearly
         self.api_key_input.setStyleSheet("""
             QLineEdit {
                 background-color: rgba(255, 255, 255, 0.1);
@@ -253,15 +269,44 @@ class RecordingWindow(QWidget):
                 border-radius: 4px;
                 color: #fff;
                 padding: 6px;
-                font-size: 11px;
+                font-size: 12px;
+                font-family: monospace;
             }
         """)
-        self.key_visible_btn = QPushButton("Show")
-        self.key_visible_btn.setStyleSheet(small_btn_style)
+        # Eye icon button for show/hide
+        self.key_visible_btn = QPushButton("👁")
+        self.key_visible_btn.setToolTip("Show/hide API key")
+        self.key_visible_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 3px;
+                font-size: 14px;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: rgba(132, 204, 22, 0.2);
+                border-color: rgba(132, 204, 22, 0.3);
+            }
+        """)
         self.key_visible_btn.clicked.connect(self._toggle_key_visibility)
-        self.key_copy_btn = QPushButton("Copy")
-        self.key_copy_btn.setStyleSheet(small_btn_style)
-        self.key_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self.api_key_input.text()))
+        # Copy icon button
+        self.key_copy_btn = QPushButton("📋")
+        self.key_copy_btn.setToolTip("Copy to clipboard")
+        self.key_copy_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 3px;
+                font-size: 14px;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: rgba(132, 204, 22, 0.2);
+                border-color: rgba(132, 204, 22, 0.3);
+            }
+        """)
+        self.key_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self._actual_api_key))
         key_row.addWidget(self.api_key_input)
         key_row.addWidget(self.key_visible_btn)
         key_row.addWidget(self.key_copy_btn)
@@ -277,25 +322,6 @@ class RecordingWindow(QWidget):
         settings_layout.addWidget(sens_label)
         settings_layout.addWidget(self.sensitivity_slider)
 
-        # Save button - vibrant green
-        self.save_btn = QPushButton("Save Settings")
-        self.save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #84cc16;
-                color: #000;
-                border: none;
-                border-radius: 4px;
-                font-size: 11px;
-                font-weight: bold;
-                padding: 8px 16px;
-            }
-            QPushButton:hover {
-                background-color: #9ae62a;
-            }
-        """)
-        self.save_btn.clicked.connect(self._save_settings)
-        settings_layout.addWidget(self.save_btn)
-
         # History section
         history_label = QLabel("Recent Clips (click to copy)")
         settings_layout.addWidget(history_label)
@@ -303,6 +329,8 @@ class RecordingWindow(QWidget):
         self.history_list = QListWidget()
         self.history_list.setMinimumHeight(120)
         self.history_list.setMaximumHeight(200)
+        self.history_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.history_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.history_list.setStyleSheet("""
             QListWidget {
                 background-color: rgba(255, 255, 255, 0.05);
@@ -326,6 +354,25 @@ class RecordingWindow(QWidget):
         self.history_list.itemClicked.connect(self._on_history_item_clicked)
         self._refresh_history()
         settings_layout.addWidget(self.history_list)
+
+        # Save button - at the bottom, vibrant green
+        self.save_btn = QPushButton("Save Settings")
+        self.save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #84cc16;
+                color: #000;
+                border: none;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: #9ae62a;
+            }
+        """)
+        self.save_btn.clicked.connect(self._save_settings)
+        settings_layout.addWidget(self.save_btn)
 
         self.settings_panel.hide()  # Hidden by default
         layout.addWidget(self.settings_panel)
@@ -367,14 +414,31 @@ class RecordingWindow(QWidget):
             # Expand window - make it tall enough for all settings
             self.setFixedSize(self.config.window_width, self.config.window_height + 400)
 
+    def _update_api_key_display(self) -> None:
+        """Update the API key display based on visibility."""
+        # Block signals to prevent textChanged from firing
+        self.api_key_input.blockSignals(True)
+        if self._key_visible:
+            self.api_key_input.setText(self._actual_api_key)
+        else:
+            # Show asterisks for each character
+            self.api_key_input.setText("*" * len(self._actual_api_key) if self._actual_api_key else "")
+        self.api_key_input.blockSignals(False)
+
+    def _on_api_key_changed(self, text: str) -> None:
+        """Handle API key text changes."""
+        if self._key_visible:
+            # If visible, update the actual key
+            self._actual_api_key = text
+
     def _toggle_key_visibility(self) -> None:
         """Toggle API key visibility."""
-        if self.api_key_input.echoMode() == QLineEdit.EchoMode.Password:
-            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
-            self.key_visible_btn.setText("Hide")
+        self._key_visible = not self._key_visible
+        self._update_api_key_display()
+        if self._key_visible:
+            self.key_visible_btn.setText("🙈")
         else:
-            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-            self.key_visible_btn.setText("Show")
+            self.key_visible_btn.setText("👁")
 
     def _copy_to_clipboard(self, text: str) -> None:
         """Copy text to clipboard."""
@@ -388,7 +452,7 @@ class RecordingWindow(QWidget):
     def _save_settings(self) -> None:
         """Save settings to config."""
         self.config.api_url = self.api_url_input.text()
-        self.config.api_key = self.api_key_input.text()
+        self.config.api_key = self._actual_api_key  # Use the actual stored key
         self.config.save()
         # Brief confirmation
         self.save_btn.setText("✓ Saved!")

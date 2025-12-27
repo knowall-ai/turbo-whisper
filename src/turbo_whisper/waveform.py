@@ -93,8 +93,8 @@ class WaveformWidget(QWidget):
         center_x = width / 2
         center_y = height / 2
 
-        # Base radius scales with widget size - can extend beyond bounds
-        base_radius = min(width, height) * 0.55  # Even bigger orb
+        # Base radius scales with widget size - keep within bounds
+        base_radius = min(width, height) * 0.40  # Fit within widget bounds
 
         # Calculate if we're in silence
         is_silent = self.current_level < self.silence_threshold
