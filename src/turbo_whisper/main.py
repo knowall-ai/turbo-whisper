@@ -103,39 +103,6 @@ class RecordingWindow(QWidget):
         layout.setSpacing(4)
         container_layout.addWidget(content_frame)
 
-        # Top bar - version left, close button right
-        top_bar = QWidget()
-        top_bar.setStyleSheet("background: transparent;")
-        top_bar_layout = QHBoxLayout(top_bar)
-        top_bar_layout.setContentsMargins(8, 4, 8, 0)
-
-        # Version number in top left
-        version_label = QLabel("v0.1.0")
-        version_label.setStyleSheet("color: #555; font-size: 9px;")
-        top_bar_layout.addWidget(version_label)
-
-        top_bar_layout.addStretch()
-
-        # Close button with power icon in top right
-        self.close_btn = QPushButton()
-        self.close_btn.setIcon(get_close_icon(16, "#84cc16"))
-        self.close_btn.setFixedSize(28, 28)
-        self.close_btn.setToolTip("Close")
-        self.close_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(132, 204, 22, 0.1);
-                border: 1px solid rgba(132, 204, 22, 0.3);
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: rgba(132, 204, 22, 0.2);
-            }
-        """)
-        self.close_btn.clicked.connect(self.cancel_requested.emit)
-        top_bar_layout.addWidget(self.close_btn)
-
-        layout.addWidget(top_bar)
-
         # Waveform - use the bright KnowAll lime green (#84cc16)
         self.waveform = WaveformWidget(
             color="#84cc16",  # Same bright green as buttons
@@ -401,6 +368,35 @@ class RecordingWindow(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(container)
 
+        # Close button - overlaid in top-right corner (not in layout)
+        self.close_btn = QPushButton(container)
+        self.close_btn.setIcon(get_close_icon(14, "#666666"))
+        self.close_btn.setFixedSize(20, 20)
+        self.close_btn.setToolTip("Close")
+        self.close_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+            }
+            QPushButton:hover {
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 4px;
+            }
+        """)
+        self.close_btn.clicked.connect(self._close_window)
+        self.close_btn.move(self.config.window_width - 28, 8)  # Top-right corner
+        self.close_btn.raise_()  # Bring to front
+
+        # Version label - overlaid in top-left corner (not in layout)
+        self.version_label = QLabel("v0.1.0", container)
+        self.version_label.setStyleSheet("""
+            color: #555;
+            font-size: 9px;
+            background: transparent;
+        """)
+        self.version_label.move(12, 10)
+        self.version_label.raise_()
+
         # Size
         self.setFixedSize(self.config.window_width, self.config.window_height)
 
@@ -504,6 +500,11 @@ class RecordingWindow(QWidget):
         original_text = item.text()
         item.setText("✓ Copied!")
         QTimer.singleShot(1000, lambda: item.setText(original_text))
+
+    def _close_window(self) -> None:
+        """Close the window (emits cancel if recording)."""
+        self.cancel_requested.emit()
+        self.hide()
 
     def center_on_screen(self) -> None:
         """Center window on the screen."""
