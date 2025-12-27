@@ -10,7 +10,7 @@ Turbo Whisper is a SuperWhisper-like voice dictation for Linux, macOS, and Windo
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)
 
-<img width="1457" height="498" alt="image" src="https://github.com/user-attachments/assets/df82d107-d528-4329-97d0-6fb4cd7826d7" />
+<img width="1554" height="678" alt="image" src="https://github.com/user-attachments/assets/1f2e0447-2152-48d6-99c3-8d49d3053ac8" />
 
 ## Features
 
