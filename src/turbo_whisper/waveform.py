@@ -1,107 +1,211 @@
-"""Waveform visualization widget."""
+"""Waveform visualization widget - OpenAI/ElevenLabs style."""
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
+import math
+from collections import deque
+
+from PyQt6.QtCore import Qt, QTimer, QPointF
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QRadialGradient, QBrush
 from PyQt6.QtWidgets import QWidget
 
 
 class WaveformWidget(QWidget):
-    """Widget displaying audio waveform visualization."""
+    """Organic blob-style audio visualization that responds to sound."""
 
-    def __init__(self, parent=None, color="#00ff88", bg_color="#1a1a2e"):
+    def __init__(self, parent=None, color="#84cc16", bg_color="#1a1a2e"):
         super().__init__(parent)
-        self.waveform_data = []
-        self.color = QColor(color)
+        self.base_color = QColor(color)
         self.bg_color = QColor(bg_color)
-        self.bar_count = 40
-        self.animation_offset = 0
 
-        # Animation timer for idle state
-        self.idle_timer = QTimer(self)
-        self.idle_timer.timeout.connect(self._animate_idle)
+        # Audio state
+        self.current_level = 0.0
+        self.target_level = 0.0
+        self.waveform_data = []
+        self.level_history = deque(maxlen=60)  # Smooth level tracking
         self.is_recording = False
 
-        self.setMinimumHeight(60)
+        # Animation state
+        self.phase = 0.0
+        self.blob_points = 64  # Points around the blob
+
+        # Smooth animation timer
+        self.animation_timer = QTimer(self)
+        self.animation_timer.timeout.connect(self._animate)
+        self.animation_timer.setInterval(16)  # ~60 FPS
+
+        # Silence threshold - below this, minimal animation
+        # Lowered for quiet mics
+        self.silence_threshold = 0.001
+
+        # Sensitivity (amplification factor) - can be adjusted via settings
+        self.sensitivity = 200
+
+        self.setMinimumHeight(130)
 
     def set_recording(self, recording: bool) -> None:
         """Set recording state."""
         self.is_recording = recording
-        if not recording:
-            self.idle_timer.start(50)
+        self.waveform_data = []
+        self.current_level = 0.0
+        self.target_level = 0.0
+        self.level_history.clear()
+        self.phase = 0.0
+
+        if recording:
+            self.animation_timer.start()
         else:
-            self.idle_timer.stop()
+            self.animation_timer.start()  # Keep for processing animation
         self.update()
 
     def update_waveform(self, level: float, waveform_buffer: list[float]) -> None:
-        """Update waveform with new audio data."""
+        """Update with new audio data."""
         self.waveform_data = waveform_buffer
-        self.update()
+        # Amplify based on sensitivity setting
+        amplified = min(1.0, level * self.sensitivity)
+        self.target_level = amplified
+        self.level_history.append(amplified)
 
-    def _animate_idle(self) -> None:
-        """Animate bars when idle/processing."""
-        self.animation_offset = (self.animation_offset + 1) % 360
-        self.update()
+    def _animate(self) -> None:
+        """Smooth animation tick."""
+        # Smoothly interpolate towards target level
+        self.current_level += (self.target_level - self.current_level) * 0.3
+
+        # Decay target level if no new data
+        self.target_level *= 0.85
+
+        # Advance phase for organic movement (slower when quiet)
+        if self.current_level > self.silence_threshold:
+            self.phase += 0.08 + self.current_level * 0.1
+        else:
+            self.phase += 0.02  # Very slow idle drift
+
+        self.repaint()
 
     def paintEvent(self, event) -> None:
-        """Paint the waveform visualization."""
+        """Paint the organic blob visualization."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Background
-        painter.fillRect(self.rect(), self.bg_color)
+        # Transparent background
+        painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
 
         width = self.width()
         height = self.height()
+        center_x = width / 2
         center_y = height / 2
 
-        bar_width = max(3, (width - (self.bar_count * 2)) // self.bar_count)
-        spacing = 2
-        total_width = self.bar_count * (bar_width + spacing)
-        start_x = (width - total_width) // 2
+        # Base radius scales with widget size - can extend beyond bounds
+        base_radius = min(width, height) * 0.55  # Even bigger orb
 
-        pen = QPen(self.color)
-        pen.setWidth(bar_width)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
+        # Calculate if we're in silence
+        is_silent = self.current_level < self.silence_threshold
 
-        if self.is_recording and self.waveform_data:
-            # Draw actual waveform from audio data
-            data_len = len(self.waveform_data)
-            for i in range(self.bar_count):
-                # Map bar index to waveform data
-                data_idx = int(i * data_len / self.bar_count) if data_len > 0 else 0
-                level = self.waveform_data[data_idx] if data_idx < data_len else 0
+        # Draw multiple layered blobs for depth
+        for layer in range(3):
+            layer_factor = 1.0 - layer * 0.2
+            layer_alpha = 255 - layer * 60
 
-                # Scale level to bar height (with some minimum visibility)
-                bar_height = max(4, level * (height - 10) * 2)
+            # Build blob path
+            path = QPainterPath()
+            points = []
 
-                x = start_x + i * (bar_width + spacing) + bar_width // 2
-                y1 = center_y - bar_height / 2
-                y2 = center_y + bar_height / 2
+            for i in range(self.blob_points):
+                angle = (i / self.blob_points) * 2 * math.pi
 
-                painter.drawLine(int(x), int(y1), int(x), int(y2))
-        else:
-            # Animated idle/processing state
-            import math
+                if is_silent and self.is_recording:
+                    # Subtle breathing when silent but recording
+                    breath = math.sin(self.phase * 0.5) * 0.03
+                    noise = math.sin(angle * 3 + self.phase * 0.3) * 0.02
+                    radius_mod = 1.0 + breath + noise
+                elif not self.is_recording:
+                    # Processing state - gentle pulse
+                    pulse = math.sin(self.phase) * 0.1
+                    noise = math.sin(angle * 4 + self.phase * 2) * 0.05
+                    radius_mod = 1.0 + pulse + noise
+                else:
+                    # Active sound - responsive blob
+                    # Multiple frequency components for organic feel
+                    wave1 = math.sin(angle * 2 + self.phase) * self.current_level * 0.4
+                    wave2 = math.sin(angle * 3 - self.phase * 1.3) * self.current_level * 0.3
+                    wave3 = math.sin(angle * 5 + self.phase * 0.7) * self.current_level * 0.2
 
-            for i in range(self.bar_count):
-                # Create wave animation
-                phase = (i / self.bar_count) * 4 * math.pi
-                offset = math.sin(phase + math.radians(self.animation_offset * 3)) * 0.3
-                level = 0.2 + abs(offset)
+                    # Add some randomness based on level history
+                    if len(self.level_history) > 0:
+                        idx = int((i / self.blob_points) * len(self.level_history))
+                        idx = min(idx, len(self.level_history) - 1)
+                        hist_mod = list(self.level_history)[idx] * 0.2
+                    else:
+                        hist_mod = 0
 
-                bar_height = max(4, level * (height - 20))
+                    radius_mod = 1.0 + wave1 + wave2 + wave3 + hist_mod
 
-                x = start_x + i * (bar_width + spacing) + bar_width // 2
-                y1 = center_y - bar_height / 2
-                y2 = center_y + bar_height / 2
+                radius = base_radius * radius_mod * layer_factor
+                x = center_x + math.cos(angle) * radius
+                y = center_y + math.sin(angle) * radius
+                points.append(QPointF(x, y))
 
-                # Fade color for processing effect
-                fade_color = QColor(self.color)
-                fade_color.setAlpha(150 + int(abs(offset) * 100))
-                pen.setColor(fade_color)
-                painter.setPen(pen)
+            # Close the path smoothly using bezier curves
+            if points:
+                path.moveTo(points[0])
+                for i in range(len(points)):
+                    p0 = points[i]
+                    p1 = points[(i + 1) % len(points)]
 
-                painter.drawLine(int(x), int(y1), int(x), int(y2))
+                    # Control points for smooth curves
+                    ctrl_len = 0.3
+                    angle0 = math.atan2(p0.y() - center_y, p0.x() - center_x) + math.pi / 2
+                    angle1 = math.atan2(p1.y() - center_y, p1.x() - center_x) + math.pi / 2
+
+                    dist0 = math.sqrt((p0.x() - center_x)**2 + (p0.y() - center_y)**2) * ctrl_len
+                    dist1 = math.sqrt((p1.x() - center_x)**2 + (p1.y() - center_y)**2) * ctrl_len
+
+                    cp1 = QPointF(p0.x() + math.cos(angle0) * dist0,
+                                  p0.y() + math.sin(angle0) * dist0)
+                    cp2 = QPointF(p1.x() - math.cos(angle1) * dist1,
+                                  p1.y() - math.sin(angle1) * dist1)
+
+                    path.cubicTo(cp1, cp2, p1)
+
+            # Color with glow effect
+            if layer == 0:
+                # Outer glow
+                glow_color = QColor(self.base_color)
+                glow_color.setAlpha(30 + int(self.current_level * 50))
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(glow_color))
+            elif layer == 1:
+                # Mid layer
+                mid_color = QColor(self.base_color)
+                mid_color.setAlpha(layer_alpha)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(mid_color))
+            else:
+                # Inner bright core
+                # Radial gradient for depth
+                gradient = QRadialGradient(center_x, center_y, base_radius * layer_factor)
+
+                core_color = QColor(self.base_color).lighter(150)
+                core_color.setAlpha(200)
+                gradient.setColorAt(0, core_color)
+
+                edge_color = QColor(self.base_color)
+                edge_color.setAlpha(layer_alpha)
+                gradient.setColorAt(1, edge_color)
+
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(gradient))
+
+            painter.drawPath(path)
+
+        # Draw subtle ring around blob when actively listening
+        if self.is_recording and self.current_level > self.silence_threshold:
+            ring_radius = base_radius * (1.5 + self.current_level * 0.5)
+            ring_color = QColor(self.base_color)
+            ring_color.setAlpha(int(30 + self.current_level * 40))
+
+            pen = QPen(ring_color)
+            pen.setWidth(2)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(QPointF(center_x, center_y), ring_radius, ring_radius)
 
         painter.end()

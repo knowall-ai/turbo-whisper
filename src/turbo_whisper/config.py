@@ -23,15 +23,31 @@ class Config:
     chunk_size: int = 1024
 
     # UI settings
-    waveform_color: str = "#00ff88"
+    waveform_color: str = "#84cc16"  # KnowAll.ai lime green
     background_color: str = "#1a1a2e"
-    window_width: int = 400
-    window_height: int = 100
+    window_width: int = 520
+    window_height: int = 260  # Taller window for bigger waveform
 
     # Behavior
     auto_paste: bool = True
     copy_to_clipboard: bool = True
     language: str = "en"
+
+    # History (recent transcriptions)
+    history: list[str] = field(default_factory=list)
+    history_max: int = 20
+
+    def add_to_history(self, text: str) -> None:
+        """Add a transcription to history."""
+        if text and text.strip():
+            # Remove if already exists (move to top)
+            if text in self.history:
+                self.history.remove(text)
+            # Add to front
+            self.history.insert(0, text)
+            # Trim to max size
+            self.history = self.history[:self.history_max]
+            self.save()
 
     @classmethod
     def get_config_path(cls) -> Path:

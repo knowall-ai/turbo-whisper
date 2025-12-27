@@ -49,10 +49,14 @@ class AudioRecorder:
 
     def _record_loop(self) -> None:
         """Recording loop running in separate thread."""
+        import sys
+        frame_count = 0
+        print("Recording thread started", flush=True)
         while self.is_recording and self.stream:
             try:
                 data = self.stream.read(self.config.chunk_size, exception_on_overflow=False)
                 self.frames.append(data)
+                frame_count += 1
 
                 # Calculate audio level for visualization
                 audio_data = np.frombuffer(data, dtype=np.int16)
@@ -60,12 +64,17 @@ class AudioRecorder:
 
                 self.waveform_buffer.append(level)
 
+                # Debug every 50 frames (~3 seconds)
+                if frame_count % 50 == 0:
+                    print(f"Recording: frame={frame_count}, level={level:.4f}", flush=True)
+
                 if self.level_callback:
                     self.level_callback(level, list(self.waveform_buffer))
 
             except Exception as e:
-                print(f"Recording error: {e}")
+                print(f"Recording error: {e}", flush=True)
                 break
+        print("Recording thread stopped", flush=True)
 
     def stop(self) -> bytes:
         """Stop recording and return WAV data."""

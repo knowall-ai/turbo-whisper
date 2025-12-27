@@ -3,13 +3,18 @@
 import sys
 import threading
 
-from PyQt6.QtCore import QObject, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtCore import QObject, Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QAction, QIcon, QLinearGradient, QPalette, QBrush, QColor
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMenu,
+    QPushButton,
+    QSlider,
     QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
@@ -36,9 +41,13 @@ class SignalBridge(QObject):
 class RecordingWindow(QWidget):
     """Floating window showing waveform during recording."""
 
+    # Signal emitted when ESC is pressed to cancel
+    cancel_requested = pyqtSignal()
+
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
+        self._drag_pos = None  # For dragging support
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -50,35 +59,56 @@ class RecordingWindow(QWidget):
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        # Allow resize via mouse
+        self._resize_edge = None
 
-        # Main container with rounded corners
+        # Main container with rounded corners and purple gradient
         container = QWidget(self)
         container.setObjectName("container")
-        container.setStyleSheet(f"""
-            #container {{
-                background-color: {self.config.background_color};
+        container.setStyleSheet("""
+            #container {
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #2d1b4e,
+                    stop:0.5 #1a1033,
+                    stop:1 #0f0a1a
+                );
                 border-radius: 12px;
-                border: 1px solid #333;
-            }}
+                border: 1px solid #4a3070;
+            }
         """)
 
-        # Layout
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(8)
+        # Use a stacked layout - waveform behind, controls on top
+        from PyQt6.QtWidgets import QStackedLayout, QFrame
 
-        # Waveform
+        # Container layout
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+
+        # Create a frame for the main content
+        content_frame = QFrame()
+        content_frame.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(content_frame)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
+        container_layout.addWidget(content_frame)
+
+        # Waveform - use the bright KnowAll lime green (#84cc16)
         self.waveform = WaveformWidget(
-            color=self.config.waveform_color,
+            color="#84cc16",  # Same bright green as buttons
             bg_color=self.config.background_color,
         )
-        layout.addWidget(self.waveform)
+        self.waveform.setMinimumHeight(160)  # Bigger orb
+        layout.addWidget(self.waveform, stretch=2)  # Give it more priority
 
-        # Status row
-        status_layout = QHBoxLayout()
-        status_layout.setContentsMargins(0, 0, 0, 0)
+        # Status row - transparent background so orb shows through
+        status_widget = QWidget()
+        status_widget.setStyleSheet("background: transparent;")
+        status_layout = QHBoxLayout(status_widget)
+        status_layout.setContentsMargins(4, 0, 4, 0)
 
-        self.status_label = QLabel("Press Alt+Space to stop")
+        self.status_label = QLabel("Listening...")
         self.status_label.setStyleSheet("""
             color: #888;
             font-size: 11px;
@@ -87,15 +117,218 @@ class RecordingWindow(QWidget):
 
         status_layout.addStretch()
 
-        # Hint labels
-        hints = QLabel("Stop: Alt+Space  |  Cancel: Esc")
+        # Hint label - show configured hotkey
+        hotkey_str = "+".join(k.title() for k in self.config.hotkey)
+        hints = QLabel(f"Stop: {hotkey_str}")
         hints.setStyleSheet("""
             color: #666;
             font-size: 10px;
         """)
         status_layout.addWidget(hints)
 
-        layout.addLayout(status_layout)
+        # Close button - same vibrant green as Save button
+        self.close_btn = QPushButton("Close")
+        self.close_btn.setFixedHeight(26)
+        self.close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #84cc16;
+                color: #000;
+                border: none;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 4px 12px;
+            }
+            QPushButton:hover {
+                background-color: #9ae62a;
+            }
+        """)
+        self.close_btn.clicked.connect(self.cancel_requested.emit)
+        status_layout.addWidget(self.close_btn)
+
+        # Animated status timer
+        self._status_dots = 0
+        self._status_timer = QTimer()
+        self._status_timer.timeout.connect(self._animate_status)
+        self._status_timer.setInterval(400)
+
+        layout.addWidget(status_widget)
+
+        # More toggle button - centered chevron (bigger, more visible)
+        self.settings_btn = QPushButton("▼")
+        self.settings_btn.setFixedSize(48, 28)
+        self.settings_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(132, 204, 22, 0.1);
+                color: #84cc16;
+                border: 1px solid rgba(132, 204, 22, 0.3);
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: rgba(132, 204, 22, 0.2);
+                color: #9ae62a;
+            }
+        """)
+        self.settings_btn.clicked.connect(self._toggle_settings)
+        layout.addWidget(self.settings_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # Collapsible settings panel
+        self.settings_panel = QWidget()
+        self.settings_panel.setStyleSheet("""
+            QWidget {
+                background-color: rgba(0, 0, 0, 0.3);
+                border-radius: 8px;
+            }
+            QLabel {
+                color: #888;
+                font-size: 10px;
+            }
+            QLineEdit {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid #4a3070;
+                border-radius: 4px;
+                color: #fff;
+                padding: 6px;
+                font-size: 11px;
+            }
+            QSlider::groove:horizontal {
+                background: #333;
+                height: 6px;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #84cc16;
+                width: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
+            }
+        """)
+        settings_layout = QVBoxLayout(self.settings_panel)
+        settings_layout.setContentsMargins(12, 8, 12, 8)
+        settings_layout.setSpacing(8)
+
+        # Small button style for copy/show buttons
+        small_btn_style = """
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                color: #888;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 3px;
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: rgba(132, 204, 22, 0.2);
+                color: #84cc16;
+                border-color: rgba(132, 204, 22, 0.3);
+            }
+        """
+
+        # API URL
+        url_label = QLabel("API URL")
+        url_row = QHBoxLayout()
+        self.api_url_input = QLineEdit(self.config.api_url)
+        self.api_url_input.setPlaceholderText("https://api.openai.com/v1/audio/transcriptions")
+        self.url_copy_btn = QPushButton("Copy")
+        self.url_copy_btn.setStyleSheet(small_btn_style)
+        self.url_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self.api_url_input.text()))
+        url_row.addWidget(self.api_url_input)
+        url_row.addWidget(self.url_copy_btn)
+        settings_layout.addWidget(url_label)
+        settings_layout.addLayout(url_row)
+
+        # API Key - use PasswordEchoOnEdit for bullet display
+        key_label = QLabel("API Key")
+        key_row = QHBoxLayout()
+        self.api_key_input = QLineEdit(self.config.api_key)
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key_input.setPlaceholderText("sk-...")
+        # Style to ensure bullets show
+        self.api_key_input.setStyleSheet("""
+            QLineEdit {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid #4a3070;
+                border-radius: 4px;
+                color: #fff;
+                padding: 6px;
+                font-size: 11px;
+            }
+        """)
+        self.key_visible_btn = QPushButton("Show")
+        self.key_visible_btn.setStyleSheet(small_btn_style)
+        self.key_visible_btn.clicked.connect(self._toggle_key_visibility)
+        self.key_copy_btn = QPushButton("Copy")
+        self.key_copy_btn.setStyleSheet(small_btn_style)
+        self.key_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self.api_key_input.text()))
+        key_row.addWidget(self.api_key_input)
+        key_row.addWidget(self.key_visible_btn)
+        key_row.addWidget(self.key_copy_btn)
+        settings_layout.addWidget(key_label)
+        settings_layout.addLayout(key_row)
+
+        # Sensitivity slider
+        sens_label = QLabel("Mic Sensitivity")
+        self.sensitivity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.sensitivity_slider.setRange(1, 500)
+        self.sensitivity_slider.setValue(200)  # Default amplification
+        self.sensitivity_slider.valueChanged.connect(self._on_sensitivity_changed)
+        settings_layout.addWidget(sens_label)
+        settings_layout.addWidget(self.sensitivity_slider)
+
+        # Save button - vibrant green
+        self.save_btn = QPushButton("Save Settings")
+        self.save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #84cc16;
+                color: #000;
+                border: none;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: #9ae62a;
+            }
+        """)
+        self.save_btn.clicked.connect(self._save_settings)
+        settings_layout.addWidget(self.save_btn)
+
+        # History section
+        history_label = QLabel("Recent Clips (click to copy)")
+        settings_layout.addWidget(history_label)
+
+        self.history_list = QListWidget()
+        self.history_list.setMinimumHeight(120)
+        self.history_list.setMaximumHeight(200)
+        self.history_list.setStyleSheet("""
+            QListWidget {
+                background-color: rgba(255, 255, 255, 0.05);
+                border: 1px solid #4a3070;
+                border-radius: 4px;
+                color: #ccc;
+                font-size: 11px;
+            }
+            QListWidget::item {
+                padding: 6px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            QListWidget::item:hover {
+                background-color: rgba(132, 204, 22, 0.1);
+            }
+            QListWidget::item:selected {
+                background-color: rgba(132, 204, 22, 0.2);
+                color: #84cc16;
+            }
+        """)
+        self.history_list.itemClicked.connect(self._on_history_item_clicked)
+        self._refresh_history()
+        settings_layout.addWidget(self.history_list)
+
+        self.settings_panel.hide()  # Hidden by default
+        layout.addWidget(self.settings_panel)
 
         # Main layout
         main_layout = QVBoxLayout(self)
@@ -105,9 +338,80 @@ class RecordingWindow(QWidget):
         # Size
         self.setFixedSize(self.config.window_width, self.config.window_height)
 
-    def set_status(self, text: str) -> None:
+    def set_status(self, text: str, animate: bool = False) -> None:
         """Update status label."""
+        self._base_status = text
+        self._status_dots = 0
         self.status_label.setText(text)
+        if animate:
+            self._status_timer.start()
+        else:
+            self._status_timer.stop()
+
+    def _animate_status(self) -> None:
+        """Animate the status text with dots."""
+        self._status_dots = (self._status_dots + 1) % 4
+        dots = "." * self._status_dots
+        self.status_label.setText(f"{self._base_status}{dots}")
+
+    def _toggle_settings(self) -> None:
+        """Toggle settings panel visibility."""
+        if self.settings_panel.isVisible():
+            self.settings_panel.hide()
+            self.settings_btn.setText("▼")
+            # Shrink window
+            self.setFixedSize(self.config.window_width, self.config.window_height)
+        else:
+            self.settings_panel.show()
+            self.settings_btn.setText("▲")
+            # Expand window - make it tall enough for all settings
+            self.setFixedSize(self.config.window_width, self.config.window_height + 400)
+
+    def _toggle_key_visibility(self) -> None:
+        """Toggle API key visibility."""
+        if self.api_key_input.echoMode() == QLineEdit.EchoMode.Password:
+            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.key_visible_btn.setText("Hide")
+        else:
+            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.key_visible_btn.setText("Show")
+
+    def _copy_to_clipboard(self, text: str) -> None:
+        """Copy text to clipboard."""
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
+
+    def _on_sensitivity_changed(self, value: int) -> None:
+        """Handle sensitivity slider change - update in real-time."""
+        self.waveform.sensitivity = value
+
+    def _save_settings(self) -> None:
+        """Save settings to config."""
+        self.config.api_url = self.api_url_input.text()
+        self.config.api_key = self.api_key_input.text()
+        self.config.save()
+        # Brief confirmation
+        self.save_btn.setText("✓ Saved!")
+        QTimer.singleShot(1500, lambda: self.save_btn.setText("Save Settings"))
+
+    def _refresh_history(self) -> None:
+        """Refresh the history list from config."""
+        self.history_list.clear()
+        for text in self.config.history:
+            # Truncate long entries for display
+            display = text[:60] + "..." if len(text) > 60 else text
+            item = QListWidgetItem(display)
+            item.setData(Qt.ItemDataRole.UserRole, text)  # Store full text
+            self.history_list.addItem(item)
+
+    def _on_history_item_clicked(self, item: QListWidgetItem) -> None:
+        """Copy history item to clipboard when clicked."""
+        full_text = item.data(Qt.ItemDataRole.UserRole)
+        self._copy_to_clipboard(full_text)
+        # Brief feedback
+        original_text = item.text()
+        item.setText("✓ Copied!")
+        QTimer.singleShot(1000, lambda: item.setText(original_text))
 
     def center_on_screen(self) -> None:
         """Center window on the screen."""
@@ -115,6 +419,22 @@ class RecordingWindow(QWidget):
         x = (screen.width() - self.width()) // 2
         y = int(screen.height() * 0.3)  # Upper third of screen
         self.move(x, y)
+
+    def mousePressEvent(self, event) -> None:
+        """Handle mouse press for dragging."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event) -> None:
+        """Handle mouse move for dragging."""
+        if event.buttons() == Qt.MouseButton.LeftButton and self._drag_pos is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:
+        """Handle mouse release."""
+        self._drag_pos = None
 
 
 class TurboWhisper:
@@ -137,13 +457,19 @@ class TurboWhisper:
 
         # State
         self.is_recording = False
+        self._pending_waveform_data = None  # Thread-safe buffer for waveform data
 
         # Connect signals
         self.signals.toggle_recording.connect(self._toggle_recording)
-        self.signals.update_waveform.connect(self._on_waveform_update)
         self.signals.transcription_complete.connect(self._on_transcription_complete)
         self.signals.transcription_error.connect(self._on_transcription_error)
         self.signals.show_status.connect(self.window.set_status)
+        self.window.cancel_requested.connect(self._cancel_recording)
+
+        # Timer to poll waveform data from recorder thread (avoids cross-thread signal issues)
+        self._waveform_timer = QTimer()
+        self._waveform_timer.timeout.connect(self._poll_waveform_data)
+        self._waveform_timer.setInterval(30)  # Poll at ~33 FPS
 
         # Hotkey
         self.hotkey_manager = HotkeyManager(
@@ -190,20 +516,52 @@ class TurboWhisper:
 
     def _start_recording(self) -> None:
         """Start recording audio."""
+        print("_start_recording called")
         if self.is_recording:
+            print("Already recording, returning")
             return
 
         self.is_recording = True
         self.toggle_action.setText("Stop Recording")
+        print("Starting recording...")
 
-        # Show window
+        # Show window (don't steal focus from current app)
         self.window.waveform.set_recording(True)
-        self.window.set_status("Listening...")
+        self.window.set_status("Listening", animate=True)
         self.window.center_on_screen()
         self.window.show()
 
+        # Start waveform polling timer
+        self._pending_waveform_data = None
+        self._waveform_timer.start()
+
         # Start recording
         self.recorder.start(level_callback=self._on_audio_level)
+
+    def _cancel_recording(self) -> None:
+        """Cancel recording without transcribing."""
+        if not self.is_recording:
+            return
+
+        self.is_recording = False
+        self.toggle_action.setText("Start Recording")
+
+        # Stop waveform polling
+        self._waveform_timer.stop()
+
+        # Stop recording and discard audio
+        self.recorder.stop()
+
+        # Hide window
+        self.window.waveform.set_recording(False)
+        self.window.hide()
+
+        self.tray.showMessage(
+            "Turbo Whisper",
+            "Recording cancelled",
+            QSystemTrayIcon.MessageIcon.Information,
+            1500,
+        )
 
     def _stop_recording(self) -> None:
         """Stop recording and transcribe."""
@@ -213,9 +571,12 @@ class TurboWhisper:
         self.is_recording = False
         self.toggle_action.setText("Start Recording")
 
+        # Stop waveform polling
+        self._waveform_timer.stop()
+
         # Update UI
         self.window.waveform.set_recording(False)
-        self.window.set_status("Processing...")
+        self.window.set_status("Processing", animate=True)
 
         # Stop recording and get audio
         audio_data = self.recorder.stop()
@@ -231,18 +592,32 @@ class TurboWhisper:
         threading.Thread(target=transcribe, daemon=True).start()
 
     def _on_audio_level(self, level: float, waveform_buffer: list[float]) -> None:
-        """Handle audio level update from recorder."""
-        self.signals.update_waveform.emit(level, waveform_buffer)
+        """Handle audio level update from recorder (called from recorder thread)."""
+        # Store data for main thread to poll (thread-safe assignment)
+        self._pending_waveform_data = (level, list(waveform_buffer))
 
-    def _on_waveform_update(self, level: float, waveform_buffer: list[float]) -> None:
-        """Update waveform display."""
-        self.window.waveform.update_waveform(level, waveform_buffer)
+    def _poll_waveform_data(self) -> None:
+        """Poll waveform data from recorder thread (called from main thread timer)."""
+        if self._pending_waveform_data is not None:
+            level, waveform_buffer = self._pending_waveform_data
+            # Debug: print level occasionally
+            if hasattr(self, '_poll_count'):
+                self._poll_count += 1
+            else:
+                self._poll_count = 0
+            if self._poll_count % 30 == 0:  # Every ~1 second
+                print(f"Audio level: {level:.4f}")
+            self.window.waveform.update_waveform(level, waveform_buffer)
 
     def _on_transcription_complete(self, text: str) -> None:
         """Handle completed transcription."""
         self.window.hide()
 
         if text:
+            # Save to history
+            self.config.add_to_history(text)
+            self.window._refresh_history()
+
             # Copy to clipboard
             if self.config.copy_to_clipboard:
                 self.typer.copy_to_clipboard(text)

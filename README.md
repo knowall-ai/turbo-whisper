@@ -1,5 +1,14 @@
 # Turbo Whisper
 
+<pre style="background: linear-gradient(135deg, #2d1b4e 0%, #1a1033 50%, #0f0a1a 100%); color: #84cc16; padding: 16px; border-radius: 8px; overflow-x: auto;">
+████████╗██╗   ██╗██████╗ ██████╗  ██████╗     ██╗    ██╗██╗  ██╗██╗███████╗██████╗ ███████╗██████╗
+╚══██╔══╝██║   ██║██╔══██╗██╔══██╗██╔═══██╗    ██║    ██║██║  ██║██║██╔════╝██╔══██╗██╔════╝██╔══██╗
+   ██║   ██║   ██║██████╔╝██████╔╝██║   ██║    ██║ █╗ ██║███████║██║███████╗██████╔╝█████╗  ██████╔╝
+   ██║   ██║   ██║██╔══██╗██╔══██╗██║   ██║    ██║███╗██║██╔══██║██║╚════██║██╔═══╝ ██╔══╝  ██╔══██╗
+   ██║   ╚██████╔╝██║  ██║██████╔╝╚██████╔╝    ╚███╔███╔╝██║  ██║██║███████║██║     ███████╗██║  ██║
+   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝      ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝
+</pre>
+
 SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -9,12 +18,24 @@ SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI
 ## Features
 
 - **Global hotkey** (Ctrl+Shift+Space) to start/stop recording from anywhere
-- **Waveform visualization** - see your audio levels in real-time
+- **Waveform visualization** - see your audio levels in real-time with an animated orb
 - **OpenAI API compatible** - works with OpenAI Whisper API or self-hosted faster-whisper-server
 - **Auto-type** - transcribed text is typed directly into the focused window
 - **Clipboard support** - text is also copied to clipboard
 - **System tray** - runs quietly in the background
 - **Cross-platform** - Linux, macOS, and Windows support
+
+## Perfect for AI CLI Tools
+
+Turbo Whisper is ideal for voice input with terminal-based AI tools:
+
+- **[Claude Code](https://github.com/anthropics/claude-code)** - Anthropic's CLI for Claude
+- **[Aider](https://github.com/paul-gauthier/aider)** - AI pair programming in your terminal
+- **[GitHub Copilot CLI](https://githubnext.com/projects/copilot-cli)** - Voice commands for git and shell
+- **[Open Interpreter](https://github.com/OpenInterpreter/open-interpreter)** - Natural language to code execution
+- **Any terminal app** - Works anywhere you can type text
+
+Simply press the hotkey, speak your prompt, and the transcription is typed directly into your terminal.
 
 ## Installation
 
@@ -156,14 +177,80 @@ Available modifiers: `ctrl`, `shift`, `alt`, `super`
 
 ## Self-Hosting Whisper
 
-You can run your own Whisper server using [faster-whisper-server](https://github.com/fedirz/faster-whisper-server):
+You can run your own Whisper server for faster, private, and cost-free transcription using [faster-whisper-server](https://github.com/fedirz/faster-whisper-server).
+
+### Hardware Requirements
+
+| Model | VRAM (GPU) | RAM (CPU) | Speed | Accuracy |
+|-------|------------|-----------|-------|----------|
+| tiny | ~1 GB | ~2 GB | Fastest | Basic |
+| base | ~1 GB | ~2 GB | Very fast | Good |
+| small | ~2 GB | ~4 GB | Fast | Better |
+| medium | ~5 GB | ~8 GB | Moderate | Great |
+| large-v3 | ~10 GB | ~16 GB | Slower | Best |
+
+**Recommendations:**
+- **GPU with 6+ GB VRAM**: Use `large-v3` for best accuracy
+- **GPU with 4 GB VRAM**: Use `small` or `medium`
+- **CPU only**: Use `tiny` or `base` (expect slower transcription)
+
+### Quick Start with Docker
 
 ```bash
-# With GPU
-docker run --gpus=all -p 8000:8000 fedirz/faster-whisper-server:latest-cuda
+# With NVIDIA GPU (recommended)
+docker run --gpus=all -p 8000:8000 \
+  -e WHISPER__MODEL=Systran/faster-whisper-large-v3 \
+  fedirz/faster-whisper-server:latest-cuda
 
-# CPU only
-docker run -p 8000:8000 fedirz/faster-whisper-server:latest-cpu
+# With smaller model (less VRAM)
+docker run --gpus=all -p 8000:8000 \
+  -e WHISPER__MODEL=Systran/faster-whisper-small \
+  fedirz/faster-whisper-server:latest-cuda
+
+# CPU only (slower, no GPU required)
+docker run -p 8000:8000 \
+  -e WHISPER__MODEL=Systran/faster-whisper-base \
+  fedirz/faster-whisper-server:latest-cpu
+```
+
+### Available Models
+
+Models are downloaded automatically on first use:
+
+| Model ID | Size |
+|----------|------|
+| `Systran/faster-whisper-tiny` | ~75 MB |
+| `Systran/faster-whisper-base` | ~150 MB |
+| `Systran/faster-whisper-small` | ~500 MB |
+| `Systran/faster-whisper-medium` | ~1.5 GB |
+| `Systran/faster-whisper-large-v3` | ~3 GB |
+
+### Persistent Model Cache
+
+To avoid re-downloading models on container restart:
+
+```bash
+docker run --gpus=all -p 8000:8000 \
+  -v ~/.cache/huggingface:/root/.cache/huggingface \
+  -e WHISPER__MODEL=Systran/faster-whisper-large-v3 \
+  fedirz/faster-whisper-server:latest-cuda
+```
+
+### Configure Turbo Whisper
+
+Update your config to use the self-hosted server:
+
+```json
+{
+  "api_url": "http://localhost:8000/v1/audio/transcriptions",
+  "api_key": ""
+}
+```
+
+### Verify Server is Running
+
+```bash
+curl http://localhost:8000/health
 ```
 
 ## Troubleshooting
