@@ -4,20 +4,37 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-Turbo Whisper is a SuperWhisper-like voice dictation application for Linux. It provides a floating waveform UI that appears when the user presses a global hotkey, records audio, sends it to a Whisper API endpoint, and types the transcribed text into the focused window.
+Turbo Whisper is a SuperWhisper-like voice dictation application for Linux, macOS, and Windows. It provides a floating waveform UI with an animated orb that appears when the user presses a global hotkey, records audio, sends it to a Whisper API endpoint, and types the transcribed text into the focused window.
 
 ## Architecture
 
 ```
 src/turbo_whisper/
-├── main.py       # Application entry point, Qt app, system tray
-├── waveform.py   # Waveform visualization widget (PyQt6)
+├── main.py       # Application entry point, Qt app, system tray, settings panel
+├── waveform.py   # Animated orb visualization widget (PyQt6)
+├── icons.py      # Lucide SVG icons (power, copy, eye, chevron)
 ├── recorder.py   # Audio recording with PyAudio
 ├── api.py        # Whisper API client (OpenAI-compatible)
 ├── hotkey.py     # Global hotkey handling with pynput
 ├── typer.py      # Auto-type using xdotool/wtype
-└── config.py     # Configuration management
+└── config.py     # Configuration management with history
 ```
+
+## Icon Library
+
+We use [Lucide Icons](https://lucide.dev/) for UI icons. Icons are stored as SVG strings in `icons.py` and rendered to QIcon via QSvgRenderer.
+
+Current icons used:
+- `power` - Close button
+- `copy` - Copy to clipboard
+- `eye` / `eye-off` - Show/hide API key
+- `chevron-down` / `chevron-up` - Expand/collapse settings
+
+To add a new icon:
+1. Find the icon at https://lucide.dev/icons/
+2. Copy the SVG path data
+3. Add it to `icons.py` as `ICON_NAME = '''<svg>...</svg>'''`
+4. Create a getter function `get_name_icon(size, color)`
 
 ## Development Commands
 
@@ -49,11 +66,14 @@ ruff check src/
 
 ## Key Features to Maintain
 
-1. **Waveform visualization** - Real-time audio level display with bars
-2. **Global hotkey** - Alt+Space by default, works from any application
+1. **Animated orb visualization** - Sound-responsive blob animation (OpenAI/ElevenLabs style)
+2. **Global hotkey** - Ctrl+Shift+Space by default, works from any application
 3. **OpenAI API compatibility** - Works with OpenAI or self-hosted faster-whisper-server
 4. **Auto-type** - Transcribed text typed into focused window
 5. **System tray** - Runs in background with tray icon
+6. **Settings panel** - Expandable panel for API URL, API key, sensitivity
+7. **Clip history** - Stores last 20 transcriptions for easy re-use
+8. **Draggable window** - Can be moved anywhere on screen
 
 ## Configuration
 

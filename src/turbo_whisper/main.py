@@ -23,7 +23,14 @@ from PyQt6.QtWidgets import (
 from .api import WhisperAPIError, WhisperClient
 from .config import Config
 from .hotkey import HotkeyManager
-from .icons import get_close_icon, get_copy_icon, get_eye_icon, get_eye_off_icon
+from .icons import (
+    get_chevron_down_icon,
+    get_chevron_up_icon,
+    get_close_icon,
+    get_copy_icon,
+    get_eye_icon,
+    get_eye_off_icon,
+)
 from .recorder import AudioRecorder
 from .typer import Typer
 from .waveform import WaveformWidget
@@ -161,21 +168,18 @@ class RecordingWindow(QWidget):
 
         layout.addWidget(status_widget)
 
-        # More toggle button - centered chevron (bigger, more visible)
-        self.settings_btn = QPushButton("▼")
-        self.settings_btn.setFixedSize(48, 28)
+        # More toggle button - chevron icon
+        self.settings_btn = QPushButton()
+        self.settings_btn.setIcon(get_chevron_down_icon(20, "#84cc16"))
+        self.settings_btn.setFixedSize(40, 28)
         self.settings_btn.setStyleSheet("""
             QPushButton {
                 background: rgba(132, 204, 22, 0.1);
-                color: #84cc16;
                 border: 1px solid rgba(132, 204, 22, 0.3);
                 border-radius: 6px;
-                font-size: 16px;
-                font-weight: bold;
             }
             QPushButton:hover {
                 background: rgba(132, 204, 22, 0.2);
-                color: #9ae62a;
             }
         """)
         self.settings_btn.clicked.connect(self._toggle_settings)
@@ -412,12 +416,12 @@ class RecordingWindow(QWidget):
         """Toggle settings panel visibility."""
         if self.settings_panel.isVisible():
             self.settings_panel.hide()
-            self.settings_btn.setText("▼")
+            self.settings_btn.setIcon(get_chevron_down_icon(20, "#84cc16"))
             # Shrink window
             self.setFixedSize(self.config.window_width, self.config.window_height)
         else:
             self.settings_panel.show()
-            self.settings_btn.setText("▲")
+            self.settings_btn.setIcon(get_chevron_up_icon(20, "#84cc16"))
             # Expand window - make it tall enough for all settings
             self.setFixedSize(self.config.window_width, self.config.window_height + 400)
 
