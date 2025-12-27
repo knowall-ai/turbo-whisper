@@ -39,3 +39,4 @@ htmlcov/
 
 # Config (user-specific)
 config.json
+.env
