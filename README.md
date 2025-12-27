@@ -1,62 +1,98 @@
 # Turbo Whisper
 
-SuperWhisper-like voice dictation for Linux with waveform UI.
+SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)
 
 ## Features
 
-- **Global hotkey** (Alt+Space) to start/stop recording from anywhere
+- **Global hotkey** (Alt+`) to start/stop recording from anywhere
 - **Waveform visualization** - see your audio levels in real-time
 - **OpenAI API compatible** - works with OpenAI Whisper API or self-hosted faster-whisper-server
 - **Auto-type** - transcribed text is typed directly into the focused window
 - **Clipboard support** - text is also copied to clipboard
 - **System tray** - runs quietly in the background
-
-## Requirements
-
-- Python 3.10+
-- Linux (X11 or Wayland)
-- A Whisper API endpoint (OpenAI or self-hosted)
-
-### System Dependencies
-
-```bash
-# Ubuntu/Debian
-sudo apt install python3-pyaudio portaudio19-dev xdotool xclip
-
-# Fedora
-sudo dnf install python3-pyaudio portaudio-devel xdotool xclip
-
-# Arch
-sudo pacman -S python-pyaudio portaudio xdotool xclip
-```
+- **Cross-platform** - Linux, macOS, and Windows support
 
 ## Installation
 
+### Linux (Ubuntu/Debian)
+
 ```bash
+# Install system dependencies
+sudo apt install python3-pyaudio portaudio19-dev xdotool xclip
+
+# Clone and install
+git clone https://github.com/knowall-ai/turbo-whisper.git
+cd turbo-whisper
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+### Linux (Fedora)
+
+```bash
+sudo dnf install python3-pyaudio portaudio-devel xdotool xclip
+git clone https://github.com/knowall-ai/turbo-whisper.git
+cd turbo-whisper
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+### Linux (Arch)
+
+```bash
+sudo pacman -S python-pyaudio portaudio xdotool xclip
+git clone https://github.com/knowall-ai/turbo-whisper.git
+cd turbo-whisper
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+### macOS
+
+```bash
+# Install Homebrew dependencies
+brew install portaudio
+
+# Clone and install
+git clone https://github.com/knowall-ai/turbo-whisper.git
+cd turbo-whisper
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+### Windows
+
+```powershell
 # Clone the repository
 git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
 
-# Install with pip
-pip install -e .
+# Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate
 
-# Or with uv
-uv pip install -e .
+# Install dependencies
+pip install -e .
+pip install pyperclip  # Required for Windows clipboard/typing
 ```
 
 ## Configuration
 
-Configuration is stored in `~/.config/turbo-whisper/config.json`:
+Create `~/.config/turbo-whisper/config.json` (Linux/macOS) or `%APPDATA%\turbo-whisper\config.json` (Windows):
 
 ```json
 {
-  "api_url": "http://localhost:8000/v1/audio/transcriptions",
-  "api_key": "",
-  "hotkey": ["alt", "space"],
+  "api_url": "https://api.openai.com/v1/audio/transcriptions",
+  "api_key": "sk-your-api-key",
+  "hotkey": ["alt", "`"],
   "language": "en",
   "auto_paste": true,
   "copy_to_clipboard": true,
@@ -86,20 +122,25 @@ Configuration is stored in `~/.config/turbo-whisper/config.json`:
 ## Usage
 
 ```bash
+# Activate virtual environment
+source .venv/bin/activate  # Linux/macOS
+# or
+.venv\Scripts\activate     # Windows
+
 # Start the application
 turbo-whisper
 ```
 
-1. Press **Alt+Space** to start recording
+1. Press **Alt+`** (backtick) to start recording
 2. Speak your text
-3. Press **Alt+Space** again to stop and transcribe
+3. Press **Alt+`** again to stop and transcribe
 4. Text is automatically typed into the focused window
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| Alt+Space | Start/stop recording |
+| Alt+` | Start/stop recording |
 | Esc | Cancel recording (when window is focused) |
 
 ## Self-Hosting Whisper
@@ -113,6 +154,26 @@ docker run --gpus=all -p 8000:8000 fedirz/faster-whisper-server:latest-cuda
 # CPU only
 docker run -p 8000:8000 fedirz/faster-whisper-server:latest-cpu
 ```
+
+## Troubleshooting
+
+### Linux: Hotkey conflicts
+If Alt+` conflicts with another application, edit the config to use a different hotkey:
+```json
+{
+  "hotkey": ["ctrl", "shift", "`"]
+}
+```
+
+### Windows: PyAudio installation fails
+Install the pre-built wheel:
+```powershell
+pip install pipwin
+pipwin install pyaudio
+```
+
+### macOS: Accessibility permissions
+Grant accessibility permissions to your terminal app in System Preferences → Security & Privacy → Privacy → Accessibility.
 
 ## License
 

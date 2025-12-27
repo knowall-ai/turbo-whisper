@@ -1,6 +1,6 @@
 """Global hotkey handling using pynput."""
 
-import threading
+import time
 from typing import Callable
 
 from pynput import keyboard
@@ -19,9 +19,17 @@ class HotkeyManager:
         """
         self.callback = callback
         self.hotkey_combo = self._parse_hotkey(hotkey_combo)
+        self.hotkey_chars = self._get_char_keys(hotkey_combo)
         self.current_keys = set()
+        self.current_chars = set()
         self.listener = None
         self._running = False
+        self._last_trigger = 0
+        self._debounce_ms = 300  # Prevent double triggers
+
+    def _get_char_keys(self, combo: list[str]) -> set:
+        """Extract single character keys from combo."""
+        return {k.lower() for k in combo if len(k) == 1}
 
     def _parse_hotkey(self, combo: list[str]) -> set:
         """Parse hotkey string names to pynput keys."""
@@ -71,9 +79,9 @@ class HotkeyManager:
 
     def _on_press(self, key) -> None:
         """Handle key press event."""
-        # Normalize the key
-        if hasattr(key, "char"):
-            self.current_keys.add(key)
+        # Track character keys separately
+        if hasattr(key, "char") and key.char:
+            self.current_chars.add(key.char.lower())
         else:
             self.current_keys.add(key)
 
@@ -85,13 +93,24 @@ class HotkeyManager:
         if key in (keyboard.Key.shift_l, keyboard.Key.shift_r):
             self.current_keys.add(keyboard.Key.shift)
 
-        # Check if hotkey combo is pressed
-        if self.hotkey_combo.issubset(self.current_keys):
-            self.callback()
+        # Check if hotkey combo is pressed (special keys + char keys)
+        special_keys_match = self.hotkey_combo.issubset(self.current_keys)
+        char_keys_match = self.hotkey_chars.issubset(self.current_chars)
+
+        if special_keys_match and char_keys_match:
+            # Debounce to prevent double triggers
+            now = time.time() * 1000
+            if now - self._last_trigger > self._debounce_ms:
+                self._last_trigger = now
+                self.callback()
 
     def _on_release(self, key) -> None:
         """Handle key release event."""
-        self.current_keys.discard(key)
+        # Clear character keys
+        if hasattr(key, "char") and key.char:
+            self.current_chars.discard(key.char.lower())
+        else:
+            self.current_keys.discard(key)
 
         # Also remove generic versions
         if key in (keyboard.Key.alt_l, keyboard.Key.alt_r):

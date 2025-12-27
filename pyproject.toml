@@ -1,20 +1,22 @@
 [project]
 name = "turbo-whisper"
 version = "0.1.0"
-description = "SuperWhisper-like voice dictation for Linux with waveform UI"
+description = "SuperWhisper-like voice dictation with waveform UI - cross-platform"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
     { name = "KnowAll AI", email = "ben.weeks@outlook.com" }
 ]
-keywords = ["voice", "dictation", "whisper", "speech-to-text", "linux"]
+keywords = ["voice", "dictation", "whisper", "speech-to-text", "linux", "windows", "macos"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: X11 Applications :: Qt",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -31,6 +33,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+windows = [
+    "pyperclip>=1.8.0",
+]
 dev = [
     "pytest>=7.0.0",
     "black>=23.0.0",
