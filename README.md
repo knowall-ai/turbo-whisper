@@ -1,11 +1,8 @@
-<pre style="background: linear-gradient(135deg, #2d1b4e 0%, #1a1033 50%, #0f0a1a 100%); color: #84cc16; padding: 16px; border-radius: 8px; overflow-x: auto;">
-████████╗██╗   ██╗██████╗ ██████╗  ██████╗     ██╗    ██╗██╗  ██╗██╗███████╗██████╗ ███████╗██████╗
-╚══██╔══╝██║   ██║██╔══██╗██╔══██╗██╔═══██╗    ██║    ██║██║  ██║██║██╔════╝██╔══██╗██╔════╝██╔══██╗
-   ██║   ██║   ██║██████╔╝██████╔╝██║   ██║    ██║ █╗ ██║███████║██║███████╗██████╔╝█████╗  ██████╔╝
-   ██║   ██║   ██║██╔══██╗██╔══██╗██║   ██║    ██║███╗██║██╔══██║██║╚════██║██╔═══╝ ██╔══╝  ██╔══██╗
-   ██║   ╚██████╔╝██║  ██║██████╔╝╚██████╔╝    ╚███╔███╔╝██║  ██║██║███████║██║     ███████╗██║  ██║
-   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝      ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝
-</pre>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/logo.svg">
+  <img alt="Turbo Whisper" src="assets/logo.svg" width="800">
+</picture>
 
 Turbo Whisper is a SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
 

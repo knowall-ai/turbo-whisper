@@ -231,7 +231,7 @@ class RecordingWindow(QWidget):
         url_row = QHBoxLayout()
         self.api_url_input = QLineEdit(self.config.api_url)
         self.api_url_input.setPlaceholderText("https://api.openai.com/v1/audio/transcriptions")
-        self.url_copy_btn = QPushButton("📋")
+        self.url_copy_btn = QPushButton("⧉")  # Two overlapping squares
         self.url_copy_btn.setToolTip("Copy to clipboard")
         self.url_copy_btn.setStyleSheet("""
             QPushButton {
@@ -273,8 +273,8 @@ class RecordingWindow(QWidget):
                 font-family: monospace;
             }
         """)
-        # Eye icon button for show/hide
-        self.key_visible_btn = QPushButton("👁")
+        # Eye icon button for show/hide - simple outline
+        self.key_visible_btn = QPushButton("◉")  # Simple eye symbol
         self.key_visible_btn.setToolTip("Show/hide API key")
         self.key_visible_btn.setStyleSheet("""
             QPushButton {
@@ -290,8 +290,8 @@ class RecordingWindow(QWidget):
             }
         """)
         self.key_visible_btn.clicked.connect(self._toggle_key_visibility)
-        # Copy icon button
-        self.key_copy_btn = QPushButton("📋")
+        # Copy icon button - two overlapping squares
+        self.key_copy_btn = QPushButton("⧉")
         self.key_copy_btn.setToolTip("Copy to clipboard")
         self.key_copy_btn.setStyleSheet("""
             QPushButton {
@@ -436,9 +436,9 @@ class RecordingWindow(QWidget):
         self._key_visible = not self._key_visible
         self._update_api_key_display()
         if self._key_visible:
-            self.key_visible_btn.setText("🙈")
+            self.key_visible_btn.setText("○")  # Open/empty circle = hidden
         else:
-            self.key_visible_btn.setText("👁")
+            self.key_visible_btn.setText("◉")  # Filled circle = visible
 
     def _copy_to_clipboard(self, text: str) -> None:
         """Copy text to clipboard."""
