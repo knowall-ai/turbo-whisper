@@ -8,7 +8,7 @@ SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI
 
 ## Features
 
-- **Global hotkey** (Alt+`) to start/stop recording from anywhere
+- **Global hotkey** (Ctrl+Shift+Space) to start/stop recording from anywhere
 - **Waveform visualization** - see your audio levels in real-time
 - **OpenAI API compatible** - works with OpenAI Whisper API or self-hosted faster-whisper-server
 - **Auto-type** - transcribed text is typed directly into the focused window
@@ -92,7 +92,7 @@ Create `~/.config/turbo-whisper/config.json` (Linux/macOS) or `%APPDATA%\turbo-w
 {
   "api_url": "https://api.openai.com/v1/audio/transcriptions",
   "api_key": "sk-your-api-key",
-  "hotkey": ["alt", "`"],
+  "hotkey": ["ctrl", "shift", "space"],
   "language": "en",
   "auto_paste": true,
   "copy_to_clipboard": true,
@@ -131,17 +131,28 @@ source .venv/bin/activate  # Linux/macOS
 turbo-whisper
 ```
 
-1. Press **Alt+`** (backtick) to start recording
+1. Press **Ctrl+Shift+Space** to start recording
 2. Speak your text
-3. Press **Alt+`** again to stop and transcribe
-4. Text is automatically typed into the focused window
+3. Press **Ctrl+Shift+Space** again to stop and transcribe
+4. Text is automatically typed into the focused window (wherever your cursor is)
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| Alt+` | Start/stop recording |
+| Ctrl+Shift+Space | Start/stop recording (configurable) |
 | Esc | Cancel recording (when window is focused) |
+
+### Custom Hotkey
+
+Edit your config to change the hotkey:
+```json
+{
+  "hotkey": ["ctrl", "alt", "w"]
+}
+```
+
+Available modifiers: `ctrl`, `shift`, `alt`, `super`
 
 ## Self-Hosting Whisper
 
@@ -158,10 +169,10 @@ docker run -p 8000:8000 fedirz/faster-whisper-server:latest-cpu
 ## Troubleshooting
 
 ### Linux: Hotkey conflicts
-If Alt+` conflicts with another application, edit the config to use a different hotkey:
+If Ctrl+Shift+Space conflicts with another application, edit the config:
 ```json
 {
-  "hotkey": ["ctrl", "shift", "`"]
+  "hotkey": ["ctrl", "alt", "w"]
 }
 ```
 
