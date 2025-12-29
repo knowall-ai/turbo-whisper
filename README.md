@@ -1,8 +1,10 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/logo.svg">
-  <source media="(prefers-color-scheme: light)" srcset="assets/logo.svg">
-  <img alt="Turbo Whisper" src="assets/logo.svg" width="100%">
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo.svg">
+    <img alt="Turbo Whisper" src="assets/logo.svg" width="500">
+  </picture>
+</p>
 
 Turbo Whisper is a SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
 
