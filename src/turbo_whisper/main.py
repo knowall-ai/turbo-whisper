@@ -7,6 +7,7 @@ from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -317,6 +318,41 @@ class RecordingWindow(QWidget):
         settings_layout.addWidget(sens_label)
         settings_layout.addWidget(self.sensitivity_slider)
 
+        # Microphone selection
+        mic_label = QLabel("Microphone")
+        self.mic_combo = QComboBox()
+        self.mic_combo.setStyleSheet(
+            """
+            QComboBox {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid #4a3070;
+                border-radius: 4px;
+                color: #fff;
+                padding: 6px;
+                font-size: 11px;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #888;
+                margin-right: 8px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #1a1033;
+                border: 1px solid #4a3070;
+                color: #fff;
+                selection-background-color: rgba(132, 204, 22, 0.3);
+            }
+        """
+        )
+        self._populate_mic_dropdown()
+        settings_layout.addWidget(mic_label)
+        settings_layout.addWidget(self.mic_combo)
+
         # History section
         history_label = QLabel("Recent Clips (click to copy)")
         settings_layout.addWidget(history_label)
@@ -493,10 +529,43 @@ class RecordingWindow(QWidget):
         """Handle sensitivity slider change - update in real-time."""
         self.waveform.sensitivity = value
 
+    def _populate_mic_dropdown(self) -> None:
+        """Populate the microphone dropdown with available devices."""
+        import pyaudio
+
+        self.mic_combo.clear()
+        self.mic_combo.addItem("System Default", None)
+
+        try:
+            audio = pyaudio.PyAudio()
+            for i in range(audio.get_device_count()):
+                try:
+                    info = audio.get_device_info_by_index(i)
+                    if info["maxInputChannels"] > 0:
+                        name = info["name"]
+                        rate = int(info["defaultSampleRate"])
+                        display = f"{name} ({rate}Hz)"
+                        self.mic_combo.addItem(display, i)
+                except Exception:
+                    pass
+            audio.terminate()
+        except Exception as e:
+            print(f"Could not enumerate audio devices: {e}")
+
+        # Select the saved device
+        if self.config.input_device_index is not None:
+            for i in range(self.mic_combo.count()):
+                if self.mic_combo.itemData(i) == self.config.input_device_index:
+                    self.mic_combo.setCurrentIndex(i)
+                    break
+
     def _save_settings(self) -> None:
         """Save settings to config."""
         self.config.api_url = self.api_url_input.text()
         self.config.api_key = self._actual_api_key  # Use the actual stored key
+        # Save selected microphone
+        self.config.input_device_index = self.mic_combo.currentData()
+        self.config.input_device_name = self.mic_combo.currentText()
         self.config.save()
         # Brief confirmation
         self.save_btn.setText("✓ Saved!")

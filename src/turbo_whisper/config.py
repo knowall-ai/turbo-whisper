@@ -11,7 +11,7 @@ class Config:
     """Application configuration."""
 
     # API settings
-    api_url: str = "http://localhost:8000/v1/audio/transcriptions"
+    api_url: str = "https://whisper.weeksfamily.me/v1/audio/transcriptions"
     api_key: str = ""
 
     # Hotkey settings (using pynput key names)
@@ -21,6 +21,8 @@ class Config:
     sample_rate: int = 16000
     channels: int = 1
     chunk_size: int = 1024
+    input_device_index: int | None = None  # None = system default
+    input_device_name: str = ""  # For display purposes
 
     # UI settings
     waveform_color: str = "#84cc16"  # KnowAll.ai lime green
