@@ -16,6 +16,7 @@ class Typer:
         if self.system == "Windows":
             try:
                 import pyperclip
+
                 self._pyperclip = pyperclip
             except ImportError:
                 self._pyperclip = None
@@ -57,6 +58,7 @@ class Typer:
                 self._pyperclip.copy(text)
                 # Simulate Ctrl+V
                 import ctypes
+
                 user32 = ctypes.windll.user32
                 # Press Ctrl
                 user32.keybd_event(0x11, 0, 0, 0)

@@ -49,7 +49,7 @@ class AudioRecorder:
 
     def _record_loop(self) -> None:
         """Recording loop running in separate thread."""
-        import sys
+
         frame_count = 0
         print("Recording thread started", flush=True)
         while self.is_recording and self.stream:

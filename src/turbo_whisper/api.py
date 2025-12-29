@@ -51,9 +51,7 @@ class WhisperClient:
                 )
 
                 if response.status_code != 200:
-                    raise WhisperAPIError(
-                        f"API returned {response.status_code}: {response.text}"
-                    )
+                    raise WhisperAPIError(f"API returned {response.status_code}: {response.text}")
 
                 result = response.json()
                 return result.get("text", "").strip()
@@ -91,9 +89,7 @@ class WhisperClient:
                 )
 
                 if response.status_code != 200:
-                    raise WhisperAPIError(
-                        f"API returned {response.status_code}: {response.text}"
-                    )
+                    raise WhisperAPIError(f"API returned {response.status_code}: {response.text}")
 
                 result = response.json()
                 return result.get("text", "").strip()
