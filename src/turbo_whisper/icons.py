@@ -1,9 +1,8 @@
 """Lucide icons for Turbo Whisper UI."""
 
-from PyQt6.QtCore import QByteArray, QSize
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtCore import QByteArray
+from PyQt6.QtGui import QIcon, QPainter, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
-from PyQt6.QtGui import QPainter
 
 
 def _svg_to_icon(svg_content: str, size: int = 24, color: str = "#888888") -> QIcon:
@@ -31,39 +30,39 @@ def _svg_to_icon(svg_content: str, size: int = 24, color: str = "#888888") -> QI
 
 
 # Lucide icon SVGs (24x24 viewBox, stroke-based)
-ICON_POWER = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+ICON_POWER = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M12 2v10"/>
   <path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>
-</svg>'''
+</svg>"""
 
-ICON_COPY = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+ICON_COPY = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
   <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-</svg>'''
+</svg>"""
 
-ICON_EYE = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+ICON_EYE = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
   <circle cx="12" cy="12" r="3"/>
-</svg>'''
+</svg>"""
 
-ICON_EYE_OFF = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+ICON_EYE_OFF = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/>
   <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/>
   <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/>
   <path d="m2 2 20 20"/>
-</svg>'''
+</svg>"""
 
-ICON_CHEVRON_DOWN = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+ICON_CHEVRON_DOWN = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="m6 9 6 6 6-6"/>
-</svg>'''
+</svg>"""
 
-ICON_CHEVRON_UP = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+ICON_CHEVRON_UP = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="m18 15-6-6-6 6"/>
-</svg>'''
+</svg>"""
 
-ICON_CHECK = '''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+ICON_CHECK = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M20 6 9 17l-5-5"/>
-</svg>'''
+</svg>"""
 
 
 def get_close_icon(size: int = 20, color: str = "#888888") -> QIcon:
@@ -99,3 +98,37 @@ def get_chevron_up_icon(size: int = 20, color: str = "#888888") -> QIcon:
 def get_check_icon(size: int = 20, color: str = "#888888") -> QIcon:
     """Get the check/tick icon."""
     return _svg_to_icon(ICON_CHECK, size, color)
+
+
+def get_tray_icon(size: int = 64) -> QIcon:
+    """Get a green orb icon for the system tray."""
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtGui import QImage, QRadialGradient, QBrush
+
+    # Create image with transparency
+    image = QImage(size, size, QImage.Format.Format_ARGB32)
+    image.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    # Create radial gradient for glowing orb effect
+    from PyQt6.QtGui import QColor
+
+    center = size // 2
+    gradient = QRadialGradient(center, center, center * 0.8)
+    gradient.setColorAt(0.0, QColor(180, 230, 100))  # Light green center
+    gradient.setColorAt(0.5, QColor(132, 204, 22))   # Lime green (#84cc16)
+    gradient.setColorAt(1.0, QColor(60, 100, 10))    # Darker edge
+
+    painter.setBrush(QBrush(gradient))
+    painter.setPen(Qt.PenStyle.NoPen)
+
+    # Draw the orb (circle with padding)
+    padding = size // 8
+    painter.drawEllipse(padding, padding, size - 2 * padding, size - 2 * padding)
+
+    painter.end()
+
+    pixmap = QPixmap.fromImage(image)
+    return QIcon(pixmap)
