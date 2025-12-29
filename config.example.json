@@ -1,0 +1,19 @@
+{
+  "api_url": "https://api.openai.com/v1/audio/transcriptions",
+  "api_key": "sk-your-api-key-here",
+  "hotkey": ["alt", "space"],
+  "sample_rate": 16000,
+  "channels": 1,
+  "chunk_size": 1024,
+  "input_device_index": null,
+  "input_device_name": "",
+  "waveform_color": "#84cc16",
+  "background_color": "#1a1a2e",
+  "window_width": 520,
+  "window_height": 260,
+  "auto_paste": true,
+  "copy_to_clipboard": true,
+  "language": "en",
+  "history": [],
+  "history_max": 20
+}

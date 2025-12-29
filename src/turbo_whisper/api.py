@@ -90,15 +90,33 @@ class WhisperClient:
                     data=data,
                 )
 
-                if response.status_code != 200:
+                if response.status_code == 401:
                     raise WhisperAPIError(
-                        f"API returned {response.status_code}: {response.text}"
+                        "Unauthorized - check your API key in settings"
+                    )
+                elif response.status_code == 403:
+                    raise WhisperAPIError(
+                        "Access denied - check your API key permissions"
+                    )
+                elif response.status_code == 404:
+                    raise WhisperAPIError(
+                        "API endpoint not found - check your API URL"
+                    )
+                elif response.status_code >= 500:
+                    raise WhisperAPIError(
+                        "Server error - try again later"
+                    )
+                elif response.status_code != 200:
+                    raise WhisperAPIError(
+                        f"API error ({response.status_code})"
                     )
 
                 result = response.json()
                 return result.get("text", "").strip()
 
         except httpx.TimeoutException:
-            raise WhisperAPIError("Request timed out")
+            raise WhisperAPIError("Request timed out - server may be busy")
+        except httpx.ConnectError:
+            raise WhisperAPIError("Could not connect - check internet/API URL")
         except httpx.RequestError as e:
-            raise WhisperAPIError(f"Request failed: {e}")
+            raise WhisperAPIError(f"Connection error: {e}")
