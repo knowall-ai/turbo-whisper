@@ -392,13 +392,16 @@ class RecordingWindow(QWidget):
                 background: transparent;
                 border: none;
             }
-            QPushButton:hover {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 4px;
-            }
         """
         )
         self.close_btn.clicked.connect(self._close_window)
+        # Hover behavior - change icon to green instead of background
+        self.close_btn.enterEvent = lambda e: self.close_btn.setIcon(
+            get_close_icon(14, "#84cc16")
+        )
+        self.close_btn.leaveEvent = lambda e: self.close_btn.setIcon(
+            get_close_icon(14, "#666666")
+        )
         self.close_btn.move(self.config.window_width - 28, 8)  # Top-right corner
         self.close_btn.raise_()  # Bring to front
 
