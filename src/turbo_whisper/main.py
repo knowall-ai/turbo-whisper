@@ -479,8 +479,10 @@ class RecordingWindow(QWidget):
 
     def update_mic_level(self, level: float) -> None:
         """Update the mic level display in sensitivity slider (0.0 to 1.0 scale)."""
-        self._current_mic_level = level
-        self._update_sensitivity_style()
+        # Only update if level changed significantly (reduces stylesheet updates)
+        if abs(level - self._current_mic_level) > 0.01 or level == 0:
+            self._current_mic_level = level
+            self._update_sensitivity_style()
 
     def _animate_status(self) -> None:
         """Animate the status text with dots."""
