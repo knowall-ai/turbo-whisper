@@ -3,8 +3,8 @@
 import sys
 import threading
 
-from PyQt6.QtCore import QObject, Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QAction, QIcon, QLinearGradient, QPalette, QBrush, QColor
+from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -31,10 +31,12 @@ from .icons import (
     get_copy_icon,
     get_eye_icon,
     get_eye_off_icon,
+    get_tray_icon,
 )
 from .recorder import AudioRecorder
 from .typer import Typer
 from .waveform import WaveformWidget
+from .window import WindowDetector
 
 
 class SignalBridge(QObject):
@@ -61,6 +63,9 @@ class RecordingWindow(QWidget):
 
     def _setup_ui(self) -> None:
         """Set up the recording window UI."""
+        # Set window icon for taskbar
+        self.setWindowIcon(get_tray_icon(128))
+
         # Frameless, always on top, floating window
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -74,7 +79,8 @@ class RecordingWindow(QWidget):
         # Main container with rounded corners and purple gradient
         container = QWidget(self)
         container.setObjectName("container")
-        container.setStyleSheet("""
+        container.setStyleSheet(
+            """
             #container {
                 background: qlineargradient(
                     x1:0, y1:0, x2:1, y2:1,
@@ -85,10 +91,11 @@ class RecordingWindow(QWidget):
                 border-radius: 12px;
                 border: 1px solid #4a3070;
             }
-        """)
+        """
+        )
 
         # Use a stacked layout - waveform behind, controls on top
-        from PyQt6.QtWidgets import QStackedLayout, QFrame
+        from PyQt6.QtWidgets import QFrame
 
         # Container layout
         container_layout = QVBoxLayout(container)
@@ -118,10 +125,12 @@ class RecordingWindow(QWidget):
         status_layout.setContentsMargins(4, 0, 4, 0)
 
         self.status_label = QLabel("Listening...")
-        self.status_label.setStyleSheet("""
+        self.status_label.setStyleSheet(
+            """
             color: #888;
             font-size: 11px;
-        """)
+        """
+        )
         status_layout.addWidget(self.status_label)
 
         status_layout.addStretch()
@@ -129,10 +138,12 @@ class RecordingWindow(QWidget):
         # Hint label - show configured hotkey
         hotkey_str = "+".join(k.title() for k in self.config.hotkey)
         hints = QLabel(f"Stop: {hotkey_str}")
-        hints.setStyleSheet("""
+        hints.setStyleSheet(
+            """
             color: #666;
             font-size: 10px;
-        """)
+        """
+        )
         status_layout.addWidget(hints)
 
         # Animated status timer
@@ -147,7 +158,8 @@ class RecordingWindow(QWidget):
         self.settings_btn = QPushButton()
         self.settings_btn.setIcon(get_chevron_down_icon(20, "#84cc16"))
         self.settings_btn.setFixedSize(40, 28)
-        self.settings_btn.setStyleSheet("""
+        self.settings_btn.setStyleSheet(
+            """
             QPushButton {
                 background: rgba(132, 204, 22, 0.1);
                 border: 1px solid rgba(132, 204, 22, 0.3);
@@ -156,13 +168,15 @@ class RecordingWindow(QWidget):
             QPushButton:hover {
                 background: rgba(132, 204, 22, 0.2);
             }
-        """)
+        """
+        )
         self.settings_btn.clicked.connect(self._toggle_settings)
         layout.addWidget(self.settings_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Collapsible settings panel
         self.settings_panel = QWidget()
-        self.settings_panel.setStyleSheet("""
+        self.settings_panel.setStyleSheet(
+            """
             QWidget {
                 background-color: rgba(0, 0, 0, 0.3);
                 border-radius: 8px;
@@ -190,27 +204,11 @@ class RecordingWindow(QWidget):
                 margin: -4px 0;
                 border-radius: 7px;
             }
-        """)
+        """
+        )
         settings_layout = QVBoxLayout(self.settings_panel)
         settings_layout.setContentsMargins(12, 8, 12, 8)
         settings_layout.setSpacing(8)
-
-        # Small button style for copy/show buttons
-        small_btn_style = """
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.1);
-                color: #888;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 3px;
-                font-size: 10px;
-                padding: 4px 8px;
-            }
-            QPushButton:hover {
-                background-color: rgba(132, 204, 22, 0.2);
-                color: #84cc16;
-                border-color: rgba(132, 204, 22, 0.3);
-            }
-        """
 
         # API URL
         url_label = QLabel("API URL")
@@ -221,7 +219,8 @@ class RecordingWindow(QWidget):
         self.url_copy_btn.setIcon(get_copy_icon(16, "#888888"))
         self.url_copy_btn.setFixedSize(28, 28)
         self.url_copy_btn.setToolTip("Copy to clipboard")
-        self.url_copy_btn.setStyleSheet("""
+        self.url_copy_btn.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(255, 255, 255, 0.1);
                 border: 1px solid rgba(255, 255, 255, 0.1);
@@ -231,8 +230,11 @@ class RecordingWindow(QWidget):
                 background-color: rgba(132, 204, 22, 0.2);
                 border-color: rgba(132, 204, 22, 0.3);
             }
-        """)
-        self.url_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self.api_url_input.text(), self.url_copy_btn))
+        """
+        )
+        self.url_copy_btn.clicked.connect(
+            lambda: self._copy_to_clipboard(self.api_url_input.text(), self.url_copy_btn)
+        )
         url_row.addWidget(self.api_url_input)
         url_row.addWidget(self.url_copy_btn)
         settings_layout.addWidget(url_label)
@@ -248,7 +250,8 @@ class RecordingWindow(QWidget):
         self.api_key_input.setPlaceholderText("sk-...")
         self.api_key_input.textChanged.connect(self._on_api_key_changed)
         # Style to ensure asterisks show clearly
-        self.api_key_input.setStyleSheet("""
+        self.api_key_input.setStyleSheet(
+            """
             QLineEdit {
                 background-color: rgba(255, 255, 255, 0.1);
                 border: 1px solid #4a3070;
@@ -258,13 +261,15 @@ class RecordingWindow(QWidget):
                 font-size: 12px;
                 font-family: monospace;
             }
-        """)
+        """
+        )
         # Eye icon button for show/hide
         self.key_visible_btn = QPushButton()
         self.key_visible_btn.setIcon(get_eye_icon(16, "#888888"))
         self.key_visible_btn.setFixedSize(28, 28)
         self.key_visible_btn.setToolTip("Show/hide API key")
-        self.key_visible_btn.setStyleSheet("""
+        self.key_visible_btn.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(255, 255, 255, 0.1);
                 border: 1px solid rgba(255, 255, 255, 0.1);
@@ -274,14 +279,16 @@ class RecordingWindow(QWidget):
                 background-color: rgba(132, 204, 22, 0.2);
                 border-color: rgba(132, 204, 22, 0.3);
             }
-        """)
+        """
+        )
         self.key_visible_btn.clicked.connect(self._toggle_key_visibility)
         # Copy icon button
         self.key_copy_btn = QPushButton()
         self.key_copy_btn.setIcon(get_copy_icon(16, "#888888"))
         self.key_copy_btn.setFixedSize(28, 28)
         self.key_copy_btn.setToolTip("Copy to clipboard")
-        self.key_copy_btn.setStyleSheet("""
+        self.key_copy_btn.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(255, 255, 255, 0.1);
                 border: 1px solid rgba(255, 255, 255, 0.1);
@@ -291,8 +298,11 @@ class RecordingWindow(QWidget):
                 background-color: rgba(132, 204, 22, 0.2);
                 border-color: rgba(132, 204, 22, 0.3);
             }
-        """)
-        self.key_copy_btn.clicked.connect(lambda: self._copy_to_clipboard(self._actual_api_key, self.key_copy_btn))
+        """
+        )
+        self.key_copy_btn.clicked.connect(
+            lambda: self._copy_to_clipboard(self._actual_api_key, self.key_copy_btn)
+        )
         key_row.addWidget(self.api_key_input)
         key_row.addWidget(self.key_visible_btn)
         key_row.addWidget(self.key_copy_btn)
@@ -317,7 +327,8 @@ class RecordingWindow(QWidget):
         self.history_list.setMaximumHeight(200)
         self.history_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.history_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.history_list.setStyleSheet("""
+        self.history_list.setStyleSheet(
+            """
             QListWidget {
                 background-color: rgba(255, 255, 255, 0.05);
                 border: 1px solid #4a3070;
@@ -336,14 +347,16 @@ class RecordingWindow(QWidget):
                 background-color: rgba(132, 204, 22, 0.2);
                 color: #84cc16;
             }
-        """)
+        """
+        )
         self.history_list.itemClicked.connect(self._on_history_item_clicked)
         self._refresh_history()
         settings_layout.addWidget(self.history_list)
 
         # Save button - at the bottom, vibrant green
         self.save_btn = QPushButton("Save Settings")
-        self.save_btn.setStyleSheet("""
+        self.save_btn.setStyleSheet(
+            """
             QPushButton {
                 background-color: #84cc16;
                 color: #000;
@@ -356,7 +369,8 @@ class RecordingWindow(QWidget):
             QPushButton:hover {
                 background-color: #9ae62a;
             }
-        """)
+        """
+        )
         self.save_btn.clicked.connect(self._save_settings)
         settings_layout.addWidget(self.save_btn)
 
@@ -373,7 +387,8 @@ class RecordingWindow(QWidget):
         self.close_btn.setIcon(get_close_icon(14, "#666666"))
         self.close_btn.setFixedSize(20, 20)
         self.close_btn.setToolTip("Close")
-        self.close_btn.setStyleSheet("""
+        self.close_btn.setStyleSheet(
+            """
             QPushButton {
                 background: transparent;
                 border: none;
@@ -382,18 +397,21 @@ class RecordingWindow(QWidget):
                 background: rgba(255, 255, 255, 0.1);
                 border-radius: 4px;
             }
-        """)
+        """
+        )
         self.close_btn.clicked.connect(self._close_window)
         self.close_btn.move(self.config.window_width - 28, 8)  # Top-right corner
         self.close_btn.raise_()  # Bring to front
 
         # Version label - overlaid in top-left corner (not in layout)
         self.version_label = QLabel("v0.1.0", container)
-        self.version_label.setStyleSheet("""
+        self.version_label.setStyleSheet(
+            """
             color: #555;
             font-size: 9px;
             background: transparent;
-        """)
+        """
+        )
         self.version_label.move(12, 10)
         self.version_label.raise_()
 
@@ -516,11 +534,18 @@ class RecordingWindow(QWidget):
     def mousePressEvent(self, event) -> None:
         """Handle mouse press for dragging."""
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            # Use startSystemMove for Wayland compatibility
+            if hasattr(self.windowHandle(), "startSystemMove"):
+                self.windowHandle().startSystemMove()
+            else:
+                # Fallback for X11
+                self._drag_pos = (
+                    event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                )
             event.accept()
 
     def mouseMoveEvent(self, event) -> None:
-        """Handle mouse move for dragging."""
+        """Handle mouse move for dragging (X11 fallback)."""
         if event.buttons() == Qt.MouseButton.LeftButton and self._drag_pos is not None:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
             event.accept()
@@ -542,6 +567,7 @@ class TurboWhisper:
         self.recorder = AudioRecorder(self.config)
         self.client = WhisperClient(self.config)
         self.typer = Typer()
+        self.window_detector = WindowDetector()
         self.signals = SignalBridge()
 
         # UI
@@ -575,7 +601,7 @@ class TurboWhisper:
         self.tray = QSystemTrayIcon(self.app)
 
         # Create simple icon (will use default if no icon available)
-        self.tray.setIcon(QIcon.fromTheme("audio-input-microphone"))
+        self.tray.setIcon(get_tray_icon(64))
         self.tray.setToolTip("Turbo Whisper - Press Alt+Space to dictate")
 
         # Context menu
@@ -614,13 +640,19 @@ class TurboWhisper:
             print("Already recording, returning")
             return
 
+        # Detect focused window BEFORE showing recording UI
+        focused_window = self.window_detector.get_focused_window_name()
+
         self.is_recording = True
         self.toggle_action.setText("Stop Recording")
         print("Starting recording...")
 
         # Show window (don't steal focus from current app)
         self.window.waveform.set_recording(True)
-        self.window.set_status("Listening", animate=True)
+        if focused_window:
+            self.window.set_status(f"Listening ({focused_window})", animate=True)
+        else:
+            self.window.set_status("Listening", animate=True)
         self.window.center_on_screen()
         self.window.show()
 
@@ -694,7 +726,7 @@ class TurboWhisper:
         if self._pending_waveform_data is not None:
             level, waveform_buffer = self._pending_waveform_data
             # Debug: print level occasionally
-            if hasattr(self, '_poll_count'):
+            if hasattr(self, "_poll_count"):
                 self._poll_count += 1
             else:
                 self._poll_count = 0

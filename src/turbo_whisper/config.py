@@ -46,7 +46,7 @@ class Config:
             # Add to front
             self.history.insert(0, text)
             # Trim to max size
-            self.history = self.history[:self.history_max]
+            self.history = self.history[: self.history_max]
             self.save()
 
     @classmethod
