@@ -309,15 +309,6 @@ class RecordingWindow(QWidget):
         settings_layout.addWidget(key_label)
         settings_layout.addLayout(key_row)
 
-        # Sensitivity slider
-        sens_label = QLabel("Mic Sensitivity")
-        self.sensitivity_slider = QSlider(Qt.Orientation.Horizontal)
-        self.sensitivity_slider.setRange(1, 500)
-        self.sensitivity_slider.setValue(200)  # Default amplification
-        self.sensitivity_slider.valueChanged.connect(self._on_sensitivity_changed)
-        settings_layout.addWidget(sens_label)
-        settings_layout.addWidget(self.sensitivity_slider)
-
         # Microphone selection
         mic_label = QLabel("Microphone")
         self.mic_combo = QComboBox()
@@ -352,6 +343,26 @@ class RecordingWindow(QWidget):
         self._populate_mic_dropdown()
         settings_layout.addWidget(mic_label)
         settings_layout.addWidget(self.mic_combo)
+
+        # Gain slider with dynamic level display in groove
+        # 0-200% range, with 100% (1.0x) in the middle
+        gain_row = QHBoxLayout()
+        self.gain_label = QLabel("Mic Gain:")
+        self.gain_value_label = QLabel("100%")
+        self.gain_value_label.setStyleSheet("color: #84cc16; font-weight: bold;")
+        gain_row.addWidget(self.gain_label)
+        gain_row.addStretch()
+        gain_row.addWidget(self.gain_value_label)
+        self.sensitivity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.sensitivity_slider.setRange(0, 200)
+        self.sensitivity_slider.setValue(100)  # 100% = no gain adjustment
+        self.sensitivity_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.sensitivity_slider.setTickInterval(20)  # Tick every 20% (20 units = 20%)
+        self.sensitivity_slider.valueChanged.connect(self._on_sensitivity_changed)
+        self._current_mic_level = 0  # Track current level for styling
+        self._update_sensitivity_style()
+        settings_layout.addLayout(gain_row)
+        settings_layout.addWidget(self.sensitivity_slider)
 
         # History section
         history_label = QLabel("Recent Clips (click to copy)")
@@ -466,6 +477,11 @@ class RecordingWindow(QWidget):
         else:
             self._status_timer.stop()
 
+    def update_mic_level(self, level: float) -> None:
+        """Update the mic level display in sensitivity slider (0.0 to 1.0 scale)."""
+        self._current_mic_level = level
+        self._update_sensitivity_style()
+
     def _animate_status(self) -> None:
         """Animate the status text with dots."""
         self._status_dots = (self._status_dots + 1) % 4
@@ -526,25 +542,93 @@ class RecordingWindow(QWidget):
             QTimer.singleShot(1500, lambda: button.setIcon(original_icon))
 
     def _on_sensitivity_changed(self, value: int) -> None:
-        """Handle sensitivity slider change - update in real-time."""
+        """Handle gain slider change - update in real-time."""
         self.waveform.sensitivity = value
+        self.gain_value_label.setText(f"{value}%")
+        self._update_sensitivity_style()
+
+    def _update_sensitivity_style(self) -> None:
+        """Update the gain slider groove to show current mic level after gain."""
+        # Apply gain to the raw level for visualization
+        gain = self.sensitivity_slider.value() / 100.0  # 0-2.0
+        gained_level = min(1.0, self._current_mic_level * gain * 5)  # Scale for visibility
+        level_pct = int(gained_level * 100)
+
+        self.sensitivity_slider.setStyleSheet(
+            f"""
+            QSlider::groove:horizontal {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #84cc16,
+                    stop:{level_pct / 100:.2f} #84cc16,
+                    stop:{min(1.0, level_pct / 100 + 0.01):.2f} #333,
+                    stop:1 #333
+                );
+                height: 6px;
+                border-radius: 3px;
+            }}
+            QSlider::handle:horizontal {{
+                background: #fff;
+                width: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
+                border: 2px solid #84cc16;
+            }}
+            QSlider::sub-page:horizontal {{
+                background: transparent;
+            }}
+            QSlider::add-page:horizontal {{
+                background: transparent;
+            }}
+            QSlider {{
+                height: 20px;
+            }}
+        """
+        )
 
     def _populate_mic_dropdown(self) -> None:
         """Populate the microphone dropdown with available devices."""
         import pyaudio
+        import subprocess
 
         self.mic_combo.clear()
         self.mic_combo.addItem("System Default", None)
+
+        # Get friendly names from PulseAudio/PipeWire
+        friendly_names = {}
+        try:
+            result = subprocess.run(
+                ["pactl", "list", "sources"],
+                capture_output=True, text=True, timeout=5
+            )
+            current_name = None
+            for line in result.stdout.split("\n"):
+                if "Name:" in line:
+                    current_name = line.split("Name:")[1].strip()
+                elif "Description:" in line and current_name:
+                    desc = line.split("Description:")[1].strip()
+                    friendly_names[current_name] = desc
+                    current_name = None
+        except Exception:
+            pass  # Fall back to PyAudio names
 
         try:
             audio = pyaudio.PyAudio()
             for i in range(audio.get_device_count()):
                 try:
                     info = audio.get_device_info_by_index(i)
-                    if info["maxInputChannels"] > 0:
+                    # Input-only devices (no output channels)
+                    if info["maxInputChannels"] > 0 and info["maxOutputChannels"] == 0:
                         name = info["name"]
                         rate = int(info["defaultSampleRate"])
-                        display = f"{name} ({rate}Hz)"
+                        # Try to find friendly name from PulseAudio
+                        display = None
+                        for pa_name, friendly in friendly_names.items():
+                            if "Mic" in pa_name:
+                                display = f"{friendly} ({rate}Hz)"
+                                break
+                        if not display:
+                            display = f"{name} ({rate}Hz)"
                         self.mic_combo.addItem(display, i)
                 except Exception:
                     pass
@@ -797,6 +881,8 @@ class TurboWhisper:
             if self._poll_count % 30 == 0:  # Every ~1 second
                 print(f"Audio level: {level:.4f}")
             self.window.waveform.update_waveform(level, waveform_buffer)
+            # Update mic level meter (scale 0-1 to 0-100, cap at 100)
+            self.window.update_mic_level(level)
 
     def _on_transcription_complete(self, text: str) -> None:
         """Handle completed transcription."""

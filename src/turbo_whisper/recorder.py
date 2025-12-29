@@ -75,13 +75,15 @@ class AudioRecorder:
                 info = self.audio.get_default_input_device_info()
                 device_index = info["index"]
 
-            # Verify device has input channels, otherwise find one that does
-            if info["maxInputChannels"] == 0:
-                print(f"Warning: Device {device_index} has no input channels, searching...")
+            # Verify device actually works - "default" often reports wrong channel count
+            # Look for input-only devices (no output channels)
+            if "default" in info["name"].lower() or info["maxInputChannels"] == 0:
+                print(f"Warning: Device '{info['name']}' may not work, searching for hardware input...")
                 device_index = None
                 for i in range(self.audio.get_device_count()):
                     dev_info = self.audio.get_device_info_by_index(i)
-                    if dev_info["maxInputChannels"] > 0:
+                    # Input-only devices have input channels but NO output channels
+                    if dev_info["maxInputChannels"] > 0 and dev_info["maxOutputChannels"] == 0:
                         info = dev_info
                         device_index = i
                         print(f"Found input device {i}: {info['name']}")

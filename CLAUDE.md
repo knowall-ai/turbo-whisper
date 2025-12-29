@@ -97,7 +97,10 @@ Key settings:
 ## Testing
 
 When testing changes:
-1. Ensure the waveform displays correctly during recording
-2. Verify hotkey works from other applications
-3. Test with both OpenAI API and self-hosted endpoints
-4. Check auto-typing works in various applications
+1. **Kill all existing processes first**: `pkill -9 -f "turbo.whisper"; pkill -9 -f "turbo-whisper"`
+2. Ensure the waveform displays correctly during recording
+3. Verify hotkey works from other applications
+4. Test with both OpenAI API and self-hosted endpoints
+5. Check auto-typing works in various applications
+
+**Important**: Multiple instances can run simultaneously and cause conflicts. Always kill all processes before starting a new test instance.
