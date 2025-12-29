@@ -2,7 +2,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo.svg">
     <source media="(prefers-color-scheme: light)" srcset="assets/logo.svg">
-    <img alt="Turbo Whisper" src="assets/logo.svg" width="500">
+    <img alt="Turbo Whisper" src="assets/logo.svg" width="100%">
   </picture>
 </p>
 
