@@ -3,8 +3,8 @@
 import math
 from collections import deque
 
-from PyQt6.QtCore import Qt, QTimer, QPointF
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QRadialGradient, QBrush
+from PyQt6.QtCore import QPointF, Qt, QTimer
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QRadialGradient
 from PyQt6.QtWidgets import QWidget
 
 
@@ -13,7 +13,9 @@ class WaveformWidget(QWidget):
 
     def __init__(self, parent=None, color="#84cc16", bg_color="#1a1a2e"):
         super().__init__(parent)
-        self.base_color = QColor(color)
+        self.recording_color = QColor(color)  # Green when recording
+        self.idle_color = QColor("#f97316")  # Orange when idle
+        self.base_color = self.idle_color  # Start with idle color
         self.bg_color = QColor(bg_color)
 
         # Audio state
@@ -62,6 +64,7 @@ class WaveformWidget(QWidget):
     def set_recording(self, recording: bool) -> None:
         """Set recording state."""
         self.is_recording = recording
+        self.base_color = self.recording_color if recording else self.idle_color
         self.waveform_data = []
         self.current_level = 0.0
         self.target_level = 0.0
@@ -174,13 +177,19 @@ class WaveformWidget(QWidget):
                     angle0 = math.atan2(p0.y() - center_y, p0.x() - center_x) + math.pi / 2
                     angle1 = math.atan2(p1.y() - center_y, p1.x() - center_x) + math.pi / 2
 
-                    dist0 = math.sqrt((p0.x() - center_x)**2 + (p0.y() - center_y)**2) * ctrl_len
-                    dist1 = math.sqrt((p1.x() - center_x)**2 + (p1.y() - center_y)**2) * ctrl_len
+                    dist0 = (
+                        math.sqrt((p0.x() - center_x) ** 2 + (p0.y() - center_y) ** 2) * ctrl_len
+                    )
+                    dist1 = (
+                        math.sqrt((p1.x() - center_x) ** 2 + (p1.y() - center_y) ** 2) * ctrl_len
+                    )
 
-                    cp1 = QPointF(p0.x() + math.cos(angle0) * dist0,
-                                  p0.y() + math.sin(angle0) * dist0)
-                    cp2 = QPointF(p1.x() - math.cos(angle1) * dist1,
-                                  p1.y() - math.sin(angle1) * dist1)
+                    cp1 = QPointF(
+                        p0.x() + math.cos(angle0) * dist0, p0.y() + math.sin(angle0) * dist0
+                    )
+                    cp2 = QPointF(
+                        p1.x() - math.cos(angle1) * dist1, p1.y() - math.sin(angle1) * dist1
+                    )
 
                     path.cubicTo(cp1, cp2, p1)
 

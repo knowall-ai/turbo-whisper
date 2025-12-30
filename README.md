@@ -252,6 +252,14 @@ Update your config to use the self-hosted server:
 curl http://localhost:8000/health
 ```
 
+## Documentation
+
+For detailed documentation, see the [`docs/`](docs/) directory:
+
+- **[Installation Guide](docs/INSTALLATION.adoc)** - Complete installation instructions for all platforms
+- **[Solution Design](docs/SOLUTION_DESIGN.adoc)** - Technical architecture and cross-platform compatibility
+- **[Troubleshooting](docs/TROUBLESHOOTING.adoc)** - Common issues and solutions
+
 ## Troubleshooting
 
 ### Linux: Hotkey conflicts
@@ -271,6 +279,8 @@ pipwin install pyaudio
 
 ### macOS: Accessibility permissions
 Grant accessibility permissions to your terminal app in System Preferences → Security & Privacy → Privacy → Accessibility.
+
+For more troubleshooting tips, see [docs/TROUBLESHOOTING.adoc](docs/TROUBLESHOOTING.adoc).
 
 ## License
 

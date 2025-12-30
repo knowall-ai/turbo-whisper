@@ -1,10 +1,12 @@
 """Main application entry point for Turbo Whisper."""
 
+import fcntl
+import os
 import sys
 import threading
 
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -23,7 +25,7 @@ from PyQt6.QtWidgets import (
 
 from .api import WhisperAPIError, WhisperClient
 from .config import Config
-from .hotkey import HotkeyManager
+from .hotkey import create_hotkey_manager
 from .icons import (
     get_check_icon,
     get_chevron_down_icon,
@@ -63,16 +65,19 @@ class RecordingWindow(QWidget):
 
     def _setup_ui(self) -> None:
         """Set up the recording window UI."""
-        # Set window icon for taskbar
-        self.setWindowIcon(get_tray_icon(128))
+        # Set window icon for taskbar (orange = idle)
+        self.setWindowIcon(get_tray_icon(128, recording=False))
 
-        # Frameless, always on top, floating window
+        # Frameless, always on top, floating window that doesn't steal focus
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
+            | Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)  # Don't steal focus
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Never accept keyboard focus
         # Allow resize via mouse
         self._resize_edge = None
 
@@ -136,15 +141,15 @@ class RecordingWindow(QWidget):
         status_layout.addStretch()
 
         # Hint label - show configured hotkey
-        hotkey_str = "+".join(k.title() for k in self.config.hotkey)
-        hints = QLabel(f"Stop: {hotkey_str}")
-        hints.setStyleSheet(
+        self._hotkey_str = "+".join(k.title() for k in self.config.hotkey)
+        self.hints_label = QLabel(f"Start: {self._hotkey_str}")
+        self.hints_label.setStyleSheet(
             """
             color: #666;
             font-size: 10px;
         """
         )
-        status_layout.addWidget(hints)
+        status_layout.addWidget(self.hints_label)
 
         # Animated status timer
         self._status_dots = 0
@@ -158,6 +163,7 @@ class RecordingWindow(QWidget):
         self.settings_btn = QPushButton()
         self.settings_btn.setIcon(get_chevron_down_icon(20, "#84cc16"))
         self.settings_btn.setFixedSize(40, 28)
+        self.settings_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Prevent SPACE triggering
         self.settings_btn.setStyleSheet(
             """
             QPushButton {
@@ -433,6 +439,7 @@ class RecordingWindow(QWidget):
         self.close_btn.setIcon(get_close_icon(14, "#666666"))
         self.close_btn.setFixedSize(20, 20)
         self.close_btn.setToolTip("Close")
+        self.close_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Prevent SPACE triggering
         self.close_btn.setStyleSheet(
             """
             QPushButton {
@@ -443,12 +450,8 @@ class RecordingWindow(QWidget):
         )
         self.close_btn.clicked.connect(self._close_window)
         # Hover behavior - change icon to green instead of background
-        self.close_btn.enterEvent = lambda e: self.close_btn.setIcon(
-            get_close_icon(14, "#84cc16")
-        )
-        self.close_btn.leaveEvent = lambda e: self.close_btn.setIcon(
-            get_close_icon(14, "#666666")
-        )
+        self.close_btn.enterEvent = lambda e: self.close_btn.setIcon(get_close_icon(14, "#84cc16"))
+        self.close_btn.leaveEvent = lambda e: self.close_btn.setIcon(get_close_icon(14, "#666666"))
         self.close_btn.move(self.config.window_width - 28, 8)  # Top-right corner
         self.close_btn.raise_()  # Bring to front
 
@@ -456,16 +459,25 @@ class RecordingWindow(QWidget):
         self.version_label = QLabel("v0.1.0", container)
         self.version_label.setStyleSheet(
             """
-            color: #555;
-            font-size: 9px;
-            background: transparent;
+            color: #666;
+            font-size: 10px;
         """
         )
-        self.version_label.move(12, 10)
-        self.version_label.raise_()
+        self.version_label.move(12, 8)
 
         # Size
         self.setFixedSize(self.config.window_width, self.config.window_height)
+
+    def update_icon(self, recording: bool) -> None:
+        """Update window icon based on recording state."""
+        self.setWindowIcon(get_tray_icon(128, recording=recording))
+
+    def keyPressEvent(self, event) -> None:
+        """Handle key presses - ESC cancels recording."""
+        if event.key() == Qt.Key.Key_Escape:
+            self.cancel_requested.emit()
+        else:
+            super().keyPressEvent(event)
 
     def set_status(self, text: str, animate: bool = False) -> None:
         """Update status label."""
@@ -476,6 +488,11 @@ class RecordingWindow(QWidget):
             self._status_timer.start()
         else:
             self._status_timer.stop()
+
+    def set_recording_hint(self, recording: bool) -> None:
+        """Update hint text based on recording state."""
+        action = "Stop" if recording else "Start"
+        self.hints_label.setText(f"{action}: {self._hotkey_str}")
 
     def update_mic_level(self, level: float) -> None:
         """Update the mic level display in sensitivity slider (0.0 to 1.0 scale)."""
@@ -590,48 +607,36 @@ class RecordingWindow(QWidget):
 
     def _populate_mic_dropdown(self) -> None:
         """Populate the microphone dropdown with available devices."""
-        import pyaudio
-        import subprocess
+        import sys
+
+        from .recorder import get_pipewire_sources
 
         self.mic_combo.clear()
         self.mic_combo.addItem("System Default", None)
 
-        # Get friendly names from PulseAudio/PipeWire
-        friendly_names = {}
-        try:
-            result = subprocess.run(
-                ["pactl", "list", "sources"],
-                capture_output=True, text=True, timeout=5
-            )
-            current_name = None
-            for line in result.stdout.split("\n"):
-                if "Name:" in line:
-                    current_name = line.split("Name:")[1].strip()
-                elif "Description:" in line and current_name:
-                    desc = line.split("Description:")[1].strip()
-                    friendly_names[current_name] = desc
-                    current_name = None
-        except Exception:
-            pass  # Fall back to PyAudio names
+        # Get input devices - use PipeWire on Linux, PyAudio elsewhere
+        if sys.platform.startswith("linux"):
+            pw_sources = get_pipewire_sources()
+            if pw_sources:
+                for src in pw_sources:
+                    idx = src["id"]  # PipeWire source ID
+                    name = src["description"]
+                    display = f"{name} (48000Hz)"
+                    self.mic_combo.addItem(display, idx)
+                return
+
+        # Fallback to PyAudio device enumeration
+        import pyaudio
 
         try:
             audio = pyaudio.PyAudio()
             for i in range(audio.get_device_count()):
                 try:
                     info = audio.get_device_info_by_index(i)
-                    # Input-only devices (no output channels)
                     if info["maxInputChannels"] > 0 and info["maxOutputChannels"] == 0:
                         name = info["name"]
                         rate = int(info["defaultSampleRate"])
-                        # Try to find friendly name from PulseAudio
-                        display = None
-                        for pa_name, friendly in friendly_names.items():
-                            if "Mic" in pa_name:
-                                display = f"{friendly} ({rate}Hz)"
-                                break
-                        if not display:
-                            display = f"{name} ({rate}Hz)"
-                        self.mic_combo.addItem(display, i)
+                        self.mic_combo.addItem(f"{name} ({rate}Hz)", i)
                 except Exception:
                     pass
             audio.terminate()
@@ -660,9 +665,29 @@ class RecordingWindow(QWidget):
     def _refresh_history(self) -> None:
         """Refresh the history list from config."""
         self.history_list.clear()
-        for text in self.config.history:
+        for entry in self.config.history:
+            # Handle both old (string) and new (dict) formats
+            if isinstance(entry, dict):
+                text = entry.get("text", "")
+                timestamp = entry.get("timestamp", "")
+            else:
+                text = entry
+                timestamp = ""
+
+            # Format timestamp for display
+            time_str = ""
+            if timestamp:
+                try:
+                    from datetime import datetime
+
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%H:%M") + " "
+                except ValueError:
+                    pass
+
             # Truncate long entries for display
-            display = text[:60] + "..." if len(text) > 60 else text
+            display = text[:50] + "..." if len(text) > 50 else text
+            display = f"{time_str}{display}"
             item = QListWidgetItem(display)
             item.setData(Qt.ItemDataRole.UserRole, text)  # Store full text
             self.history_list.addItem(item)
@@ -696,9 +721,7 @@ class RecordingWindow(QWidget):
                 self.windowHandle().startSystemMove()
             else:
                 # Fallback for X11
-                self._drag_pos = (
-                    event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-                )
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
 
     def mouseMoveEvent(self, event) -> None:
@@ -719,6 +742,7 @@ class TurboWhisper:
         self.config = Config.load()
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
+        self.app.setWindowIcon(get_tray_icon(128, recording=False))  # Orange when idle
 
         # Components
         self.recorder = AudioRecorder(self.config)
@@ -746,22 +770,29 @@ class TurboWhisper:
         self._waveform_timer.timeout.connect(self._poll_waveform_data)
         self._waveform_timer.setInterval(30)  # Poll at ~33 FPS
 
-        # Hotkey
-        self.hotkey_manager = HotkeyManager(
+        # Hotkey - use appropriate backend for platform
+        self.hotkey_manager = create_hotkey_manager(
             self.config.hotkey,
             lambda: self.signals.toggle_recording.emit(),
         )
+        if self.hotkey_manager is None:
+            print("Warning: Global hotkeys not available on this platform")
 
     def _setup_tray(self) -> None:
         """Set up system tray icon."""
         self.tray = QSystemTrayIcon(self.app)
 
         # Create simple icon (will use default if no icon available)
-        self.tray.setIcon(get_tray_icon(64))
-        self.tray.setToolTip("Turbo Whisper - Press Alt+Space to dictate")
+        self.tray.setIcon(get_tray_icon(64, recording=False))  # Orange when idle
+        hotkey_str = "+".join(k.capitalize() for k in self.config.hotkey)
+        self.tray.setToolTip(f"Turbo Whisper - Press {hotkey_str} to dictate")
 
         # Context menu
         menu = QMenu()
+
+        show_action = QAction("Show Window", menu)
+        show_action.triggered.connect(self._show_window)
+        menu.addAction(show_action)
 
         self.toggle_action = QAction("Start Recording", menu)
         self.toggle_action.triggered.connect(self._toggle_recording)
@@ -782,6 +813,21 @@ class TurboWhisper:
         self.tray.setContextMenu(menu)
         self.tray.show()
 
+    def _update_icons(self, recording: bool) -> None:
+        """Update all icons based on recording state."""
+        self.tray.setIcon(get_tray_icon(64, recording=recording))
+        self.window.update_icon(recording=recording)
+
+    def _show_window(self) -> None:
+        """Show the window without starting recording."""
+        self.window.waveform.set_recording(False)
+        self.window.set_recording_hint(recording=False)
+        self._update_icons(recording=False)
+        self.window.set_status("Ready", animate=False)
+        self.window.center_on_screen()
+        self.window.show()
+        self.window.raise_()
+
     def _toggle_recording(self) -> None:
         """Toggle recording state."""
         if self.is_recording:
@@ -791,17 +837,16 @@ class TurboWhisper:
 
     def _start_recording(self) -> None:
         """Start recording audio."""
-        print("_start_recording called")
         if self.is_recording:
-            print("Already recording, returning")
             return
 
         self.is_recording = True
         self.toggle_action.setText("Stop Recording")
-        print("Starting recording...")
+        self._update_icons(recording=True)
 
         # Show window (don't steal focus from current app)
         self.window.waveform.set_recording(True)
+        self.window.set_recording_hint(recording=True)
         self.window.set_status("Listening", animate=True)
         self.window.center_on_screen()
         self.window.show()
@@ -820,6 +865,7 @@ class TurboWhisper:
 
         self.is_recording = False
         self.toggle_action.setText("Start Recording")
+        self._update_icons(recording=False)
 
         # Stop waveform polling
         self._waveform_timer.stop()
@@ -845,12 +891,14 @@ class TurboWhisper:
 
         self.is_recording = False
         self.toggle_action.setText("Start Recording")
+        self._update_icons(recording=False)
 
         # Stop waveform polling
         self._waveform_timer.stop()
 
         # Update UI
         self.window.waveform.set_recording(False)
+        self.window.set_recording_hint(recording=False)
         self.window.set_status("Processing", animate=True)
 
         # Stop recording and get audio
@@ -929,17 +977,20 @@ class TurboWhisper:
 
     def _quit(self) -> None:
         """Clean up and quit application."""
-        self.hotkey_manager.stop()
+        if self.hotkey_manager:
+            self.hotkey_manager.stop()
         self.recorder.cleanup()
         self.app.quit()
 
     def run(self) -> int:
         """Run the application."""
-        self.hotkey_manager.start()
+        if self.hotkey_manager:
+            self.hotkey_manager.start()
 
+        hotkey_str = "+".join(k.title() for k in self.config.hotkey)
         self.tray.showMessage(
             "Turbo Whisper",
-            "Press Alt+Space to start dictating",
+            f"Press {hotkey_str} to start dictating",
             QSystemTrayIcon.MessageIcon.Information,
             3000,
         )
@@ -947,8 +998,30 @@ class TurboWhisper:
         return self.app.exec()
 
 
+_lock_fd = None  # Global to keep lock file descriptor open
+
+
+def ensure_single_instance():
+    """Ensure only one instance of the app is running."""
+    global _lock_fd
+    lock_path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "turbo-whisper.lock")
+
+    try:
+        # Open with O_CREAT to create if doesn't exist, O_WRONLY for writing
+        _lock_fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o644)
+        # Try to acquire exclusive lock (non-blocking)
+        fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Write PID
+        os.ftruncate(_lock_fd, 0)
+        os.write(_lock_fd, str(os.getpid()).encode())
+    except OSError:
+        print("Turbo Whisper is already running.")
+        sys.exit(0)
+
+
 def main():
     """Application entry point."""
+    ensure_single_instance()
     app = TurboWhisper()
     sys.exit(app.run())
 

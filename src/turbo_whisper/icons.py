@@ -100,10 +100,15 @@ def get_check_icon(size: int = 20, color: str = "#888888") -> QIcon:
     return _svg_to_icon(ICON_CHECK, size, color)
 
 
-def get_tray_icon(size: int = 64) -> QIcon:
-    """Get a green orb icon for the system tray."""
+def get_tray_icon(size: int = 64, recording: bool = False) -> QIcon:
+    """Get an orb icon for the system tray.
+
+    Args:
+        size: Icon size in pixels
+        recording: If True, green (recording). If False, orange (idle).
+    """
     from PyQt6.QtCore import Qt
-    from PyQt6.QtGui import QImage, QRadialGradient, QBrush
+    from PyQt6.QtGui import QBrush, QColor, QImage, QRadialGradient
 
     # Create image with transparency
     image = QImage(size, size, QImage.Format.Format_ARGB32)
@@ -113,13 +118,19 @@ def get_tray_icon(size: int = 64) -> QIcon:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
     # Create radial gradient for glowing orb effect
-    from PyQt6.QtGui import QColor
-
     center = size // 2
     gradient = QRadialGradient(center, center, center * 0.8)
-    gradient.setColorAt(0.0, QColor(180, 230, 100))  # Light green center
-    gradient.setColorAt(0.5, QColor(132, 204, 22))   # Lime green (#84cc16)
-    gradient.setColorAt(1.0, QColor(60, 100, 10))    # Darker edge
+
+    if recording:
+        # Green when recording
+        gradient.setColorAt(0.0, QColor(180, 230, 100))  # Light green center
+        gradient.setColorAt(0.5, QColor(132, 204, 22))  # Lime green (#84cc16)
+        gradient.setColorAt(1.0, QColor(60, 100, 10))  # Darker edge
+    else:
+        # Orange when idle
+        gradient.setColorAt(0.0, QColor(255, 200, 100))  # Light orange center
+        gradient.setColorAt(0.5, QColor(249, 115, 22))  # Orange (#f97316)
+        gradient.setColorAt(1.0, QColor(150, 60, 10))  # Darker edge
 
     painter.setBrush(QBrush(gradient))
     painter.setPen(Qt.PenStyle.NoPen)
