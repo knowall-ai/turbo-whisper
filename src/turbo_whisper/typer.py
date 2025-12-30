@@ -91,13 +91,22 @@ class Typer:
         # Try wtype first (Wayland)
         if self.wtype_available:
             try:
-                subprocess.run(
+                result = subprocess.run(
                     ["wtype", text],
                     check=True,
                     capture_output=True,
+                    text=True,
                 )
                 return True
-            except subprocess.CalledProcessError:
+            except subprocess.CalledProcessError as e:
+                # wtype doesn't work on some compositors (e.g., KDE)
+                stderr = e.stderr if hasattr(e, 'stderr') else ""
+                if "virtual keyboard" in str(stderr).lower():
+                    print("Note: wtype not supported by compositor, using clipboard")
+                    # Fall back to clipboard
+                    if self.copy_to_clipboard(text):
+                        print("Text copied to clipboard - press Ctrl+V to paste")
+                        return True
                 pass  # Fall through to xdotool
 
         # Try xdotool (X11)

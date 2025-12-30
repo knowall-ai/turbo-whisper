@@ -3,7 +3,16 @@
 import json
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
+from typing import TypedDict
+
+
+class HistoryEntry(TypedDict):
+    """A history entry with text and timestamp."""
+
+    text: str
+    timestamp: str  # ISO format
 
 
 @dataclass
@@ -36,17 +45,24 @@ class Config:
     language: str = "en"
 
     # History (recent transcriptions)
-    history: list[str] = field(default_factory=list)
+    history: list[HistoryEntry] = field(default_factory=list)
     history_max: int = 20
 
     def add_to_history(self, text: str) -> None:
         """Add a transcription to history."""
         if text and text.strip():
             # Remove if already exists (move to top)
-            if text in self.history:
-                self.history.remove(text)
-            # Add to front
-            self.history.insert(0, text)
+            for i, entry in enumerate(self.history):
+                entry_text = entry["text"] if isinstance(entry, dict) else entry
+                if entry_text == text:
+                    self.history.pop(i)
+                    break
+            # Add to front with timestamp
+            entry: HistoryEntry = {
+                "text": text,
+                "timestamp": datetime.now().isoformat(),
+            }
+            self.history.insert(0, entry)
             # Trim to max size
             self.history = self.history[:self.history_max]
             self.save()
@@ -66,6 +82,17 @@ class Config:
             try:
                 with open(config_path) as f:
                     data = json.load(f)
+                # Migrate old string-based history to new format
+                if "history" in data and data["history"]:
+                    migrated = []
+                    for entry in data["history"]:
+                        if isinstance(entry, str):
+                            # Old format: just a string
+                            migrated.append({"text": entry, "timestamp": ""})
+                        else:
+                            # New format: dict with text and timestamp
+                            migrated.append(entry)
+                    data["history"] = migrated
                 return cls(**data)
             except (json.JSONDecodeError, TypeError) as e:
                 print(f"Warning: Could not load config: {e}")

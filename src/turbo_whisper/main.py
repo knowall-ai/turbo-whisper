@@ -1,5 +1,7 @@
 """Main application entry point for Turbo Whisper."""
 
+import fcntl
+import os
 import sys
 import threading
 
@@ -23,7 +25,7 @@ from PyQt6.QtWidgets import (
 
 from .api import WhisperAPIError, WhisperClient
 from .config import Config
-from .hotkey import HotkeyManager
+from .hotkey import create_hotkey_manager
 from .icons import (
     get_check_icon,
     get_chevron_down_icon,
@@ -660,9 +662,28 @@ class RecordingWindow(QWidget):
     def _refresh_history(self) -> None:
         """Refresh the history list from config."""
         self.history_list.clear()
-        for text in self.config.history:
+        for entry in self.config.history:
+            # Handle both old (string) and new (dict) formats
+            if isinstance(entry, dict):
+                text = entry.get("text", "")
+                timestamp = entry.get("timestamp", "")
+            else:
+                text = entry
+                timestamp = ""
+
+            # Format timestamp for display
+            time_str = ""
+            if timestamp:
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%H:%M") + " "
+                except ValueError:
+                    pass
+
             # Truncate long entries for display
-            display = text[:60] + "..." if len(text) > 60 else text
+            display = text[:50] + "..." if len(text) > 50 else text
+            display = f"{time_str}{display}"
             item = QListWidgetItem(display)
             item.setData(Qt.ItemDataRole.UserRole, text)  # Store full text
             self.history_list.addItem(item)
@@ -746,11 +767,13 @@ class TurboWhisper:
         self._waveform_timer.timeout.connect(self._poll_waveform_data)
         self._waveform_timer.setInterval(30)  # Poll at ~33 FPS
 
-        # Hotkey
-        self.hotkey_manager = HotkeyManager(
+        # Hotkey - use appropriate backend for platform
+        self.hotkey_manager = create_hotkey_manager(
             self.config.hotkey,
             lambda: self.signals.toggle_recording.emit(),
         )
+        if self.hotkey_manager is None:
+            print("Warning: Global hotkeys not available on this platform")
 
     def _setup_tray(self) -> None:
         """Set up system tray icon."""
@@ -929,17 +952,20 @@ class TurboWhisper:
 
     def _quit(self) -> None:
         """Clean up and quit application."""
-        self.hotkey_manager.stop()
+        if self.hotkey_manager:
+            self.hotkey_manager.stop()
         self.recorder.cleanup()
         self.app.quit()
 
     def run(self) -> int:
         """Run the application."""
-        self.hotkey_manager.start()
+        if self.hotkey_manager:
+            self.hotkey_manager.start()
 
+        hotkey_str = "+".join(k.title() for k in self.config.hotkey)
         self.tray.showMessage(
             "Turbo Whisper",
-            "Press Alt+Space to start dictating",
+            f"Press {hotkey_str} to start dictating",
             QSystemTrayIcon.MessageIcon.Information,
             3000,
         )
@@ -947,8 +973,30 @@ class TurboWhisper:
         return self.app.exec()
 
 
+_lock_fd = None  # Global to keep lock file descriptor open
+
+
+def ensure_single_instance():
+    """Ensure only one instance of the app is running."""
+    global _lock_fd
+    lock_path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "turbo-whisper.lock")
+
+    try:
+        # Open with O_CREAT to create if doesn't exist, O_WRONLY for writing
+        _lock_fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o644)
+        # Try to acquire exclusive lock (non-blocking)
+        fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Write PID
+        os.ftruncate(_lock_fd, 0)
+        os.write(_lock_fd, str(os.getpid()).encode())
+    except OSError:
+        print("Turbo Whisper is already running.")
+        sys.exit(0)
+
+
 def main():
     """Application entry point."""
+    ensure_single_instance()
     app = TurboWhisper()
     sys.exit(app.run())
 
