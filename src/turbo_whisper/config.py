@@ -30,7 +30,7 @@ class Config:
     sample_rate: int = 16000
     channels: int = 1
     chunk_size: int = 1024
-    input_device_index: int | None = None  # None = system default
+    input_device_index: int | str | None = None  # None = system default, str for PipeWire source ID
     input_device_name: str = ""  # For display purposes
 
     # UI settings

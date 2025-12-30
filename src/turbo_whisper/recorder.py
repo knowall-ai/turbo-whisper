@@ -1,6 +1,8 @@
 """Audio recording functionality."""
 
 import io
+import re
+import subprocess
 import threading
 import wave
 from collections import deque
@@ -9,6 +11,63 @@ import numpy as np
 import pyaudio
 
 from .config import Config
+
+
+def get_pipewire_sources() -> list[dict]:
+    """Get PipeWire audio input sources.
+
+    Returns a list of dicts with 'id', 'name', and 'description' keys.
+    """
+    try:
+        result = subprocess.run(
+            ["pactl", "list", "sources"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return []
+
+        sources = []
+        current = {}
+
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("Source #"):
+                if current and current.get("is_input"):
+                    sources.append(current)
+                current = {"id": line.split("#")[1]}
+            elif line.startswith("Name:"):
+                current["name"] = line.split(":", 1)[1].strip()
+            elif line.startswith("Description:"):
+                desc = line.split(":", 1)[1].strip()
+                current["description"] = desc
+                # Check if this is a real input (not a monitor)
+                current["is_input"] = (
+                    "alsa_input" in current.get("name", "")
+                    and "Monitor" not in desc
+                )
+
+        # Don't forget the last one
+        if current and current.get("is_input"):
+            sources.append(current)
+
+        return sources
+    except Exception:
+        return []
+
+
+def set_pipewire_default_source(source_id: str) -> bool:
+    """Set the default PipeWire audio source."""
+    try:
+        result = subprocess.run(
+            ["wpctl", "set-default", source_id],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 class AudioRecorder:
@@ -29,7 +88,29 @@ class AudioRecorder:
         self._record_thread = None
 
     def get_input_devices(self) -> list[dict]:
-        """Get list of available input devices."""
+        """Get list of available input devices.
+
+        On Linux with PipeWire, returns PipeWire sources with friendly names.
+        Otherwise falls back to PyAudio device enumeration.
+        """
+        import sys
+
+        # Try PipeWire first (Linux)
+        if sys.platform.startswith("linux"):
+            pw_sources = get_pipewire_sources()
+            if pw_sources:
+                return [
+                    {
+                        "index": src["id"],  # PipeWire source ID
+                        "name": src["description"],
+                        "pipewire_name": src["name"],
+                        "channels": 2,  # PipeWire handles this
+                        "sample_rate": 48000,
+                    }
+                    for src in pw_sources
+                ]
+
+        # Fallback to PyAudio device enumeration
         devices = []
         for i in range(self.audio.get_device_count()):
             try:
@@ -55,6 +136,8 @@ class AudioRecorder:
 
     def start(self, level_callback=None) -> None:
         """Start recording audio."""
+        import sys
+
         if self.is_recording:
             return
 
@@ -66,9 +149,22 @@ class AudioRecorder:
         device_index = self.config.input_device_index
         sample_rate = self.config.sample_rate
 
+        # Check if using PipeWire source ID (string) vs PyAudio index (int)
+        using_pipewire = False
+        if sys.platform.startswith("linux") and device_index is not None:
+            # PipeWire source IDs are numeric strings from pactl
+            if isinstance(device_index, str) or (
+                isinstance(device_index, int) and device_index > 50
+            ):
+                # This is a PipeWire source ID, set it as default
+                if set_pipewire_default_source(str(device_index)):
+                    print(f"Set PipeWire default source to {device_index}")
+                    using_pipewire = True
+                    device_index = None  # Use PyAudio default (routed through PipeWire)
+
         # Get device info to determine native sample rate
         try:
-            if device_index is not None:
+            if device_index is not None and not using_pipewire:
                 info = self.audio.get_device_info_by_index(device_index)
             else:
                 # Use system default INPUT device
@@ -77,7 +173,9 @@ class AudioRecorder:
 
             # Verify device actually works - "default" often reports wrong channel count
             # Look for input-only devices (no output channels)
-            if "default" in info["name"].lower() or info["maxInputChannels"] == 0:
+            if not using_pipewire and (
+                "default" in info["name"].lower() or info["maxInputChannels"] == 0
+            ):
                 print(f"Warning: Device '{info['name']}' may not work, searching for hardware input...")
                 device_index = None
                 for i in range(self.audio.get_device_count()):
@@ -94,7 +192,8 @@ class AudioRecorder:
                 if device_rate != sample_rate:
                     print(f"Using device's native sample rate: {device_rate}Hz")
                     sample_rate = device_rate
-                print(f"Using input device {device_index}: {info['name']} ({info['maxInputChannels']} channels)")
+                device_name = self.config.input_device_name or info["name"]
+                print(f"Using input device: {device_name}")
         except Exception as e:
             print(f"Could not get device info: {e}, using config sample rate")
 

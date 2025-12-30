@@ -1,0 +1,168 @@
+= Turbo Whisper Solution Design
+:toc:
+:toclevels: 3
+
+== Audio Recording
+
+=== Cross-Platform Python Audio Libraries
+
+[cols="1,1,1,1,1,2"]
+|===
+|Library |Windows |macOS |Linux X11 |Linux Wayland/PipeWire |Notes
+
+|**PyAudio**
+|Yes
+|Yes
+|Yes
+|Requires `pipewire-alsa`
+|Most common, uses PortAudio
+
+|**sounddevice**
+|Yes
+|Yes
+|Yes
+|Requires `pipewire-alsa`
+|Nicer API than PyAudio
+
+|**SoundCard**
+|Yes
+|Yes
+|Yes
+|Native PipeWire support
+|Pure Python, no C dependencies
+
+|**PvRecorder**
+|Yes
+|Yes
+|Yes
+|Yes
+|Made for speech recognition
+
+|**pipewire_python**
+|No
+|No
+|No
+|Yes
+|Linux/PipeWire only
+|===
+
+=== Current Implementation
+
+Turbo Whisper uses **PyAudio** for audio recording. This provides good cross-platform support for Windows, macOS, and Linux.
+
+==== Linux/PipeWire Requirements
+
+On modern Linux systems using PipeWire (default on Fedora, Ubuntu 22.10+, etc.), the `pipewire-alsa` package must be installed to bridge ALSA applications (like PyAudio) to PipeWire:
+
+[source,bash]
+----
+sudo apt install pipewire-alsa  # Debian/Ubuntu
+sudo dnf install pipewire-alsa  # Fedora
+----
+
+Without this package, PyAudio will access raw ALSA devices which bypass PipeWire's audio routing, resulting in silence or wrong device selection.
+
+== Auto-Typing (Text Input)
+
+=== Cross-Platform Typing Methods
+
+[cols="1,1,1,1,1,2"]
+|===
+|Tool |Windows |macOS |Linux X11 |Linux Wayland |Notes
+
+|**pyautogui**
+|Yes
+|Yes
+|Yes
+|No
+|Python library, no Wayland support
+
+|**xdotool**
+|No
+|No
+|Yes
+|XWayland only
+|X11 protocol, works for XWayland apps
+
+|**wtype**
+|No
+|No
+|No
+|Partial
+|Needs compositor virtual-keyboard support
+
+|**ydotool**
+|No
+|No
+|Yes
+|Yes
+|Uses uinput, needs root or input group
+
+|**Clipboard**
+|Yes
+|Yes
+|Yes
+|Yes
+|Fallback: copy + Ctrl+V
+|===
+
+=== Current Implementation
+
+Turbo Whisper uses a fallback chain for typing:
+
+1. **ydotool** (Linux Wayland) - Works on all Wayland compositors via uinput
+2. **wtype** (Linux Wayland) - Native Wayland, but not supported on KDE
+3. **xdotool** (Linux X11/XWayland) - Works for X11 and XWayland applications
+4. **Clipboard fallback** - Copy to clipboard if all else fails
+
+==== ydotool Setup
+
+ydotool requires access to `/dev/uinput`:
+
+[source,bash]
+----
+sudo apt install ydotool
+sudo usermod -aG input $USER
+# Log out and back in for group change to take effect
+----
+
+== Global Hotkeys
+
+=== Cross-Platform Hotkey Methods
+
+[cols="1,1,1,1,1,2"]
+|===
+|Method |Windows |macOS |Linux X11 |Linux Wayland |Notes
+
+|**pynput**
+|Yes
+|Yes
+|Yes
+|Via XWayland
+|Works on Wayland through XWayland compatibility
+
+|**xdg-desktop-portal GlobalShortcuts**
+|No
+|No
+|No
+|Partial
+|D-Bus API, not fully supported on KDE
+
+|**keyboard (Python)**
+|Yes
+|Yes
+|Yes
+|No
+|Requires root on Linux
+|===
+
+=== Current Implementation
+
+Turbo Whisper uses **pynput** for global hotkeys. On Wayland, pynput works through XWayland compatibility layer, which is more reliable than the experimental xdg-desktop-portal GlobalShortcuts API.
+
+== Single Instance
+
+The application uses file locking (`fcntl.flock`) to ensure only one instance runs at a time. The lock file is stored at:
+
+* Linux: `$XDG_RUNTIME_DIR/turbo-whisper.lock`
+* Fallback: `/tmp/turbo-whisper.lock`

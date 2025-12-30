@@ -24,10 +24,11 @@ class Typer:
             self._pyperclip = None
             self.xdotool_available = shutil.which("xdotool") is not None
             self.wtype_available = shutil.which("wtype") is not None
+            self.ydotool_available = shutil.which("ydotool") is not None
 
-            if not self.xdotool_available and not self.wtype_available:
-                print("Warning: Neither xdotool nor wtype found. Auto-typing disabled.")
-                print("Install with: sudo apt install xdotool")
+            if not self.xdotool_available and not self.wtype_available and not self.ydotool_available:
+                print("Warning: No typing tool found. Auto-typing disabled.")
+                print("Install with: sudo apt install ydotool (Wayland) or xdotool (X11)")
 
     def type_text(self, text: str) -> bool:
         """
@@ -87,40 +88,66 @@ class Typer:
         return False
 
     def _type_linux(self, text: str) -> bool:
-        """Type text on Linux using xdotool or wtype."""
-        # Try wtype first (Wayland)
+        """Type text on Linux using ydotool, wtype, xdotool, or clipboard fallback."""
+        import time
+
+        print(f"type_linux called with: {text[:50] if text else 'empty'}...", flush=True)
+
+        # Try ydotool first (works on KDE Wayland via uinput)
+        if self.ydotool_available:
+            try:
+                print("Trying ydotool...", flush=True)
+                # Small delay to let window focus settle after our window hides
+                time.sleep(0.15)
+                subprocess.run(
+                    ["ydotool", "type", "--", text],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                print("ydotool succeeded", flush=True)
+                return True
+            except subprocess.CalledProcessError as e:
+                print(f"ydotool failed: {e.stderr if hasattr(e, 'stderr') else e}", flush=True)
+                pass  # Fall through to wtype
+
+        # Try wtype (native Wayland, simpler compositors)
         if self.wtype_available:
             try:
-                result = subprocess.run(
+                print("Trying wtype...", flush=True)
+                subprocess.run(
                     ["wtype", text],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
+                print("wtype succeeded", flush=True)
                 return True
             except subprocess.CalledProcessError as e:
-                # wtype doesn't work on some compositors (e.g., KDE)
-                stderr = e.stderr if hasattr(e, 'stderr') else ""
-                if "virtual keyboard" in str(stderr).lower():
-                    print("Note: wtype not supported by compositor, using clipboard")
-                    # Fall back to clipboard
-                    if self.copy_to_clipboard(text):
-                        print("Text copied to clipboard - press Ctrl+V to paste")
-                        return True
+                print(f"wtype failed: {e.stderr if hasattr(e, 'stderr') else e}", flush=True)
                 pass  # Fall through to xdotool
 
-        # Try xdotool (X11)
+        # Try xdotool (X11 / XWayland apps)
         if self.xdotool_available:
             try:
+                # Longer delay to let window focus return to previous app
+                time.sleep(0.3)
+                print("Trying xdotool...", flush=True)
                 subprocess.run(
-                    ["xdotool", "type", "--clearmodifiers", "--", text],
+                    ["xdotool", "type", "--delay", "10", "--clearmodifiers", "--", text],
                     check=True,
                     capture_output=True,
                 )
+                print("xdotool succeeded", flush=True)
                 return True
             except subprocess.CalledProcessError as e:
-                print(f"xdotool error: {e}")
-                return False
+                print(f"xdotool failed: {e}", flush=True)
+                pass  # Fall through to clipboard
+
+        # Last resort: copy to clipboard
+        if self.copy_to_clipboard(text):
+            print("Text copied to clipboard - press Ctrl+V to paste")
+            return True
 
         return False
 

@@ -592,48 +592,34 @@ class RecordingWindow(QWidget):
 
     def _populate_mic_dropdown(self) -> None:
         """Populate the microphone dropdown with available devices."""
-        import pyaudio
-        import subprocess
+        import sys
+        from .recorder import get_pipewire_sources
 
         self.mic_combo.clear()
         self.mic_combo.addItem("System Default", None)
 
-        # Get friendly names from PulseAudio/PipeWire
-        friendly_names = {}
-        try:
-            result = subprocess.run(
-                ["pactl", "list", "sources"],
-                capture_output=True, text=True, timeout=5
-            )
-            current_name = None
-            for line in result.stdout.split("\n"):
-                if "Name:" in line:
-                    current_name = line.split("Name:")[1].strip()
-                elif "Description:" in line and current_name:
-                    desc = line.split("Description:")[1].strip()
-                    friendly_names[current_name] = desc
-                    current_name = None
-        except Exception:
-            pass  # Fall back to PyAudio names
+        # Get input devices - use PipeWire on Linux, PyAudio elsewhere
+        if sys.platform.startswith("linux"):
+            pw_sources = get_pipewire_sources()
+            if pw_sources:
+                for src in pw_sources:
+                    idx = src["id"]  # PipeWire source ID
+                    name = src["description"]
+                    display = f"{name} (48000Hz)"
+                    self.mic_combo.addItem(display, idx)
+                return
 
+        # Fallback to PyAudio device enumeration
+        import pyaudio
         try:
             audio = pyaudio.PyAudio()
             for i in range(audio.get_device_count()):
                 try:
                     info = audio.get_device_info_by_index(i)
-                    # Input-only devices (no output channels)
                     if info["maxInputChannels"] > 0 and info["maxOutputChannels"] == 0:
                         name = info["name"]
                         rate = int(info["defaultSampleRate"])
-                        # Try to find friendly name from PulseAudio
-                        display = None
-                        for pa_name, friendly in friendly_names.items():
-                            if "Mic" in pa_name:
-                                display = f"{friendly} ({rate}Hz)"
-                                break
-                        if not display:
-                            display = f"{name} ({rate}Hz)"
-                        self.mic_combo.addItem(display, i)
+                        self.mic_combo.addItem(f"{name} ({rate}Hz)", i)
                 except Exception:
                     pass
             audio.terminate()

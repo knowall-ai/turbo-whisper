@@ -1,0 +1,77 @@
+= Turbo Whisper Troubleshooting Guide
+:toc:
+
+== Common Problems and Solutions
+
+[cols="1,2"]
+|===
+|Problem |Solution
+
+|**Microphone not picking up audio on Linux (PipeWire)**
+|Install `pipewire-alsa` package: `sudo apt install pipewire-alsa`. This bridges PyAudio/ALSA to PipeWire. Restart PipeWire after: `systemctl --user restart pipewire wireplumber`
+
+|**Microphone levels always zero**
+|Check system audio settings. The mic might be muted or the wrong device selected. Use `wpctl status` to see available sources and `wpctl set-default <id>` to switch.
+
+|**Auto-paste not working on KDE Wayland**
+|Install ydotool: `sudo apt install ydotool`. Add user to input group: `sudo usermod -aG input $USER`. Log out and back in for the group change to take effect.
+
+|**ydotool error: "failed to open uinput device"**
+|ydotool needs permission to access `/dev/uinput`. Run: `sudo usermod -aG input $USER` then log out and back in. Alternatively, run the app with sudo for testing (not recommended for regular use).
+
+|**wtype error: "Compositor does not support virtual keyboard protocol"**
+|KDE Plasma doesn't support wtype. Use ydotool instead, or rely on xdotool for XWayland apps.
+
+|**xdotool types into wrong window**
+|Increase the delay before typing. The app window might not have fully hidden before xdotool starts. Edit typer.py to increase `time.sleep()` value.
+
+|**Multiple app instances running**
+|Kill all instances: `pkill -9 -f turbo_whisper`. Remove lock file: `rm -f $XDG_RUNTIME_DIR/turbo-whisper.lock`. Restart app.
+
+|**Hotkey not working on Wayland**
+|pynput works via XWayland on Wayland. Ensure XWayland is running. Check if hotkey conflicts with system shortcuts in KDE Settings > Shortcuts.
+
+|**Transcription returns "You" or wrong text**
+|The microphone isn't capturing audio properly. Check audio levels in the app UI. If levels are near zero, see "Microphone not picking up audio" solution.
+
+|**Audio device indices keep changing**
+|PipeWire can reassign device indices dynamically. Use the device name in the app's dropdown rather than relying on a specific index. Or set `input_device_index: null` in config to use system default.
+
+|**App window doesn't appear when pressing hotkey**
+|Check if another instance is running: `pgrep -af turbo`. Kill stale instances. Verify hotkey in config matches what you're pressing.
+
+|**Transcription API errors**
+|Verify API URL and key in settings. For self-hosted whisper, ensure the server is running. Check network connectivity.
+
+|**Slow recording start**
+|First recording may be slow due to model loading on the API side. Subsequent recordings should be faster. Consider using a local whisper server for lower latency.
+|===
+
+== Diagnostic Commands
+
+[source,bash]
+----
+# Check PipeWire status
+wpctl status
+
+# List audio input devices
+pactl list sources short
+
+# Test microphone with PipeWire directly
+pw-record --target=@DEFAULT_SOURCE@ test.wav
+
+# Test microphone with ALSA
+arecord -d 3 test.wav
+
+# Check if pipewire-alsa is installed
+dpkg -l | grep pipewire-alsa
+
+# Restart PipeWire
+systemctl --user restart pipewire wireplumber
+
+# Check running turbo-whisper processes
+pgrep -af turbo
+
+# View app logs
+journalctl --user -f | grep -i turbo
+----

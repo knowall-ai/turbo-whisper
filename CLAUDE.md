@@ -104,3 +104,15 @@ When testing changes:
 5. Check auto-typing works in various applications
 
 **Important**: Multiple instances can run simultaneously and cause conflicts. Always kill all processes before starting a new test instance.
+
+## Documentation
+
+Keep the `/docs/` directory up to date:
+
+- **docs/SOLUTION_DESIGN.adoc** - Technical design decisions, cross-platform compatibility tables
+- **docs/TROUBLESHOOTING.adoc** - Problem/solution table for common issues
+
+When fixing bugs or adding features:
+1. Update TROUBLESHOOTING.adoc if the fix resolves a common user problem
+2. Update SOLUTION_DESIGN.adoc if the change affects cross-platform behavior
+3. Add new platform-specific workarounds to the compatibility tables
