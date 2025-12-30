@@ -2,6 +2,7 @@
 
 import io
 import subprocess
+import sys
 import threading
 import wave
 from collections import deque
@@ -66,8 +67,6 @@ class AudioRecorder:
 
     def get_input_devices(self) -> list[dict]:
         """Get list of available input devices."""
-        import sys
-
         # Try PipeWire first (Linux)
         if sys.platform.startswith("linux"):
             pw_sources = get_pipewire_sources()

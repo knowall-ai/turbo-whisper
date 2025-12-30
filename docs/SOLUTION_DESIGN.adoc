@@ -174,6 +174,51 @@ sudo udevadm trigger
 
 Turbo Whisper uses **pynput** for global hotkeys. On Wayland, pynput works through XWayland compatibility layer, which is more reliable than the experimental xdg-desktop-portal GlobalShortcuts API.
 
+== Window Focus Management
+
+The recording window is designed to appear without stealing focus from the user's current application. This ensures dictated text is typed into the correct window.
+
+=== Qt Window Flags
+
+[source,python]
+----
+self.setWindowFlags(
+    Qt.WindowType.FramelessWindowHint
+    | Qt.WindowType.WindowStaysOnTopHint
+    | Qt.WindowType.Tool
+    | Qt.WindowType.WindowDoesNotAcceptFocus
+)
+self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+----
+
+* `Tool` - Floating utility window (doesn't appear in taskbar)
+* `WindowDoesNotAcceptFocus` - Window cannot receive keyboard focus
+* `WA_ShowWithoutActivating` - Window appears without activating
+
+=== Platform Notes
+
+* **Windows/Linux**: Both flags work as expected
+* **macOS**: `Tool` windows already don't steal focus; additional flags provide extra safety
+
+== Platform-Specific Permissions
+
+=== macOS
+
+PyAutoGUI and pynput require special permissions on macOS:
+
+* **Accessibility**: System Preferences → Security & Privacy → Privacy → Accessibility
+* **Input Monitoring**: System Preferences → Security & Privacy → Privacy → Input Monitoring
+
+Add your terminal app or the Turbo Whisper app to both lists.
+
+=== Linux (evdev)
+
+evdev requires access to `/dev/uinput` (see Auto-Typing section above).
+
+=== Windows
+
+PyAutoGUI works without special permissions, but some elevated applications may block simulated keyboard input.
+
 == Single Instance
 
 The application uses file locking (`fcntl.flock`) to ensure only one instance runs at a time. The lock file is stored at:

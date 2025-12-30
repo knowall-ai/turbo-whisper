@@ -48,6 +48,15 @@
 
 |**Slow recording start**
 |First recording may be slow due to model loading on the API side. Subsequent recordings should be faster. Consider using a local whisper server for lower latency.
+
+|**macOS: Auto-type not working**
+|PyAutoGUI requires accessibility permissions. Go to System Preferences → Security & Privacy → Privacy → Accessibility, and add your terminal or the app to the allowed list.
+
+|**macOS: Hotkey not detected**
+|pynput requires Input Monitoring permissions on macOS. Go to System Preferences → Security & Privacy → Privacy → Input Monitoring and add your terminal or the app.
+
+|**Windows: Auto-type not working**
+|Ensure PyAutoGUI is installed. Some apps with elevated privileges may block simulated keyboard input. Try running Turbo Whisper as administrator.
 |===
 
 == Diagnostic Commands
