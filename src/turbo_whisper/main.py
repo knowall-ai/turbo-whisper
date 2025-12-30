@@ -493,7 +493,7 @@ class RecordingWindow(QWidget):
         self.close_btn.raise_()  # Bring to front
 
         # Version label - overlaid in top-left corner (not in layout)
-        self.version_label = QLabel("v0.1.0", container)
+        self.version_label = QLabel("v1.0.0", container)
         self.version_label.setStyleSheet(
             """
             color: #666;
