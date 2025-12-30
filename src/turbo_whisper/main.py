@@ -160,6 +160,7 @@ class RecordingWindow(QWidget):
         self.settings_btn = QPushButton()
         self.settings_btn.setIcon(get_chevron_down_icon(20, "#84cc16"))
         self.settings_btn.setFixedSize(40, 28)
+        self.settings_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Prevent SPACE triggering
         self.settings_btn.setStyleSheet(
             """
             QPushButton {
