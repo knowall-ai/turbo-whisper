@@ -767,12 +767,16 @@ class TurboWhisper:
         self.tray = QSystemTrayIcon(self.app)
 
         # Create simple icon (will use default if no icon available)
-        self.tray.setIcon(get_tray_icon(64))
+        self.tray.setIcon(get_tray_icon(64, recording=False))  # Orange when idle
         hotkey_str = "+".join(k.capitalize() for k in self.config.hotkey)
         self.tray.setToolTip(f"Turbo Whisper - Press {hotkey_str} to dictate")
 
         # Context menu
         menu = QMenu()
+
+        show_action = QAction("Show Window", menu)
+        show_action.triggered.connect(self._show_window)
+        menu.addAction(show_action)
 
         self.toggle_action = QAction("Start Recording", menu)
         self.toggle_action.triggered.connect(self._toggle_recording)
@@ -793,8 +797,19 @@ class TurboWhisper:
         self.tray.setContextMenu(menu)
         self.tray.show()
 
+    def _show_window(self) -> None:
+        """Show the window without starting recording."""
+        self.window.waveform.set_recording(False)
+        self.window.set_status("Ready", animate=False)
+        self.window.center_on_screen()
+        self.window.show()
+        self.window.raise_()
+
     def _toggle_recording(self) -> None:
         """Toggle recording state."""
+        # Always bring window to front so user knows recording state
+        if self.is_recording and self.window.isVisible():
+            self.window.raise_()
         if self.is_recording:
             self._stop_recording()
         else:
@@ -807,12 +822,14 @@ class TurboWhisper:
 
         self.is_recording = True
         self.toggle_action.setText("Stop Recording")
+        self.tray.setIcon(get_tray_icon(64, recording=True))  # Green when recording
 
         # Show window (don't steal focus from current app)
         self.window.waveform.set_recording(True)
         self.window.set_status("Listening", animate=True)
         self.window.center_on_screen()
         self.window.show()
+        self.window.raise_()  # Ensure window is on top
 
         # Start waveform polling timer
         self._pending_waveform_data = None
@@ -828,6 +845,7 @@ class TurboWhisper:
 
         self.is_recording = False
         self.toggle_action.setText("Start Recording")
+        self.tray.setIcon(get_tray_icon(64, recording=False))  # Orange when idle
 
         # Stop waveform polling
         self._waveform_timer.stop()
@@ -853,6 +871,7 @@ class TurboWhisper:
 
         self.is_recording = False
         self.toggle_action.setText("Start Recording")
+        self.tray.setIcon(get_tray_icon(64, recording=False))  # Orange when idle
 
         # Stop waveform polling
         self._waveform_timer.stop()

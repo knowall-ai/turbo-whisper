@@ -13,7 +13,9 @@ class WaveformWidget(QWidget):
 
     def __init__(self, parent=None, color="#84cc16", bg_color="#1a1a2e"):
         super().__init__(parent)
-        self.base_color = QColor(color)
+        self.recording_color = QColor(color)  # Green when recording
+        self.idle_color = QColor("#f97316")  # Orange when idle
+        self.base_color = self.idle_color  # Start with idle color
         self.bg_color = QColor(bg_color)
 
         # Audio state
@@ -62,6 +64,7 @@ class WaveformWidget(QWidget):
     def set_recording(self, recording: bool) -> None:
         """Set recording state."""
         self.is_recording = recording
+        self.base_color = self.recording_color if recording else self.idle_color
         self.waveform_data = []
         self.current_level = 0.0
         self.target_level = 0.0
