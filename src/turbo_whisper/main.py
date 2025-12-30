@@ -65,8 +65,12 @@ class RecordingWindow(QWidget):
 
     def _setup_ui(self) -> None:
         """Set up the recording window UI."""
-        # Set window icon for taskbar
-        self.setWindowIcon(get_tray_icon(128))
+        # Set window icon for taskbar (orange = idle)
+        self.setWindowIcon(get_tray_icon(128, recording=False))
+
+    def update_icon(self, recording: bool) -> None:
+        """Update window icon based on recording state."""
+        self.setWindowIcon(get_tray_icon(128, recording=recording))
 
         # Frameless, always on top, floating window that doesn't steal focus
         self.setWindowFlags(
@@ -727,6 +731,7 @@ class TurboWhisper:
         self.config = Config.load()
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)
+        self.app.setWindowIcon(get_tray_icon(128, recording=False))  # Orange when idle
 
         # Components
         self.recorder = AudioRecorder(self.config)
@@ -797,9 +802,17 @@ class TurboWhisper:
         self.tray.setContextMenu(menu)
         self.tray.show()
 
+    def _update_icons(self, recording: bool) -> None:
+        """Update all icons based on recording state."""
+        icon = get_tray_icon(64, recording=recording)
+        self.tray.setIcon(icon)
+        self.app.setWindowIcon(get_tray_icon(128, recording=recording))
+        self.window.update_icon(recording=recording)
+
     def _show_window(self) -> None:
         """Show the window without starting recording."""
         self.window.waveform.set_recording(False)
+        self._update_icons(recording=False)
         self.window.set_status("Ready", animate=False)
         self.window.center_on_screen()
         self.window.show()
@@ -822,7 +835,7 @@ class TurboWhisper:
 
         self.is_recording = True
         self.toggle_action.setText("Stop Recording")
-        self.tray.setIcon(get_tray_icon(64, recording=True))  # Green when recording
+        self._update_icons(recording=True)
 
         # Show window (don't steal focus from current app)
         self.window.waveform.set_recording(True)
@@ -845,7 +858,7 @@ class TurboWhisper:
 
         self.is_recording = False
         self.toggle_action.setText("Start Recording")
-        self.tray.setIcon(get_tray_icon(64, recording=False))  # Orange when idle
+        self._update_icons(recording=False)
 
         # Stop waveform polling
         self._waveform_timer.stop()
@@ -871,7 +884,7 @@ class TurboWhisper:
 
         self.is_recording = False
         self.toggle_action.setText("Start Recording")
-        self.tray.setIcon(get_tray_icon(64, recording=False))  # Orange when idle
+        self._update_icons(recording=False)
 
         # Stop waveform polling
         self._waveform_timer.stop()
