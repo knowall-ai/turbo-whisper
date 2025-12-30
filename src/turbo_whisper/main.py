@@ -68,13 +68,15 @@ class RecordingWindow(QWidget):
         # Set window icon for taskbar
         self.setWindowIcon(get_tray_icon(128))
 
-        # Frameless, always on top, floating window
+        # Frameless, always on top, floating window that doesn't steal focus
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
+            | Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)  # Don't steal focus
         # Allow resize via mouse
         self._resize_edge = None
 
@@ -436,6 +438,7 @@ class RecordingWindow(QWidget):
         self.close_btn.setIcon(get_close_icon(14, "#666666"))
         self.close_btn.setFixedSize(20, 20)
         self.close_btn.setToolTip("Close")
+        self.close_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Prevent SPACE triggering
         self.close_btn.setStyleSheet(
             """
             QPushButton {
@@ -768,7 +771,8 @@ class TurboWhisper:
 
         # Create simple icon (will use default if no icon available)
         self.tray.setIcon(get_tray_icon(64))
-        self.tray.setToolTip("Turbo Whisper - Press Alt+Space to dictate")
+        hotkey_str = "+".join(k.capitalize() for k in self.config.hotkey)
+        self.tray.setToolTip(f"Turbo Whisper - Press {hotkey_str} to dictate")
 
         # Context menu
         menu = QMenu()
