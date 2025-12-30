@@ -30,15 +30,20 @@ dependencies = [
     "httpx>=0.24.0",
     "pynput>=1.7.6",
     "python-xlib>=0.33",
+    "pyautogui>=0.9.54",
 ]
 
 [project.optional-dependencies]
 windows = [
     "pyperclip>=1.8.0",
 ]
+linux = [
+    "evdev>=1.6.0",
+]
 wayland = [
     "dbus-python>=1.3.0",
     "PyGObject>=3.42.0",
+    "evdev>=1.6.0",
 ]
 dev = [
     "pytest>=7.0.0",

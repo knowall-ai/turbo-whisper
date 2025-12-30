@@ -14,16 +14,19 @@
 |Check system audio settings. The mic might be muted or the wrong device selected. Use `wpctl status` to see available sources and `wpctl set-default <id>` to switch.
 
 |**Auto-paste not working on KDE Wayland**
-|Install ydotool: `sudo apt install ydotool`. Add user to input group: `sudo usermod -aG input $USER`. Log out and back in for the group change to take effect.
+|Turbo Whisper uses evdev for Wayland typing. Set up permissions: `sudo usermod -aG input $USER`, create udev rule (see below), log out and back in.
 
-|**ydotool error: "failed to open uinput device"**
-|ydotool needs permission to access `/dev/uinput`. Run: `sudo usermod -aG input $USER` then log out and back in. Alternatively, run the app with sudo for testing (not recommended for regular use).
+|**evdev error: "Permission denied for /dev/uinput"**
+|evdev needs write access to `/dev/uinput`. Run: `sudo usermod -aG input $USER` and create udev rule: `echo 'KERNEL=="uinput", GROUP="input", MODE="0660"' \| sudo tee /etc/udev/rules.d/99-uinput.rules` then `sudo udevadm control --reload-rules && sudo udevadm trigger`. Log out and back in.
+
+|**evdev error: "cannot be opened for writing"**
+|Same as above - `/dev/uinput` needs proper permissions. Check with `ls -la /dev/uinput` - should show `crw-rw---- root input`.
 
 |**wtype error: "Compositor does not support virtual keyboard protocol"**
-|KDE Plasma doesn't support wtype. Use ydotool instead, or rely on xdotool for XWayland apps.
+|KDE Plasma doesn't support wtype. Turbo Whisper uses evdev instead, which works on all Wayland compositors.
 
 |**xdotool types into wrong window**
-|Increase the delay before typing. The app window might not have fully hidden before xdotool starts. Edit typer.py to increase `time.sleep()` value.
+|xdotool only works for XWayland apps, not native Wayland apps like VS Code or Ghostty. Ensure evdev is working (see above) for native Wayland support.
 
 |**Multiple app instances running**
 |Kill all instances: `pkill -9 -f turbo_whisper`. Remove lock file: `rm -f $XDG_RUNTIME_DIR/turbo-whisper.lock`. Restart app.

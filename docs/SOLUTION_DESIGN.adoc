@@ -70,12 +70,19 @@ Without this package, PyAudio will access raw ALSA devices which bypass PipeWire
 |===
 |Tool |Windows |macOS |Linux X11 |Linux Wayland |Notes
 
-|**pyautogui**
+|**PyAutoGUI**
 |Yes
 |Yes
 |Yes
 |No
-|Python library, no Wayland support
+|Python library, simple API
+
+|**evdev (python-evdev)**
+|No
+|No
+|Yes
+|Yes
+|Kernel uinput, needs input group
 
 |**xdotool**
 |No
@@ -96,7 +103,7 @@ Without this package, PyAudio will access raw ALSA devices which bypass PipeWire
 |No
 |Yes
 |Yes
-|Uses uinput, needs root or input group
+|CLI tool, uses uinput, needs daemon
 
 |**Clipboard**
 |Yes
@@ -108,21 +115,28 @@ Without this package, PyAudio will access raw ALSA devices which bypass PipeWire
 
 === Current Implementation
 
-Turbo Whisper uses a fallback chain for typing:
+Turbo Whisper uses **PyAutoGUI** for Windows/macOS and **evdev** for Linux:
 
-1. **ydotool** (Linux Wayland) - Works on all Wayland compositors via uinput
-2. **wtype** (Linux Wayland) - Native Wayland, but not supported on KDE
-3. **xdotool** (Linux X11/XWayland) - Works for X11 and XWayland applications
-4. **Clipboard fallback** - Copy to clipboard if all else fails
+* **Windows/macOS**: PyAutoGUI - pure Python, simple API, works everywhere
+* **Linux**: evdev (python-evdev) - creates a virtual keyboard via `/dev/uinput`, works on both X11 and Wayland
+* **Fallback**: PyAutoGUI on X11, then clipboard if all else fails
 
-==== ydotool Setup
+==== Linux evdev Setup
 
-ydotool requires access to `/dev/uinput`:
+evdev requires access to `/dev/uinput`. Set up permissions:
 
 [source,bash]
 ----
-sudo apt install ydotool
+# Add user to input group
 sudo usermod -aG input $USER
+
+# Create udev rule for uinput permissions
+echo 'KERNEL=="uinput", GROUP="input", MODE="0660"' | sudo tee /etc/udev/rules.d/99-uinput.rules
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
 # Log out and back in for group change to take effect
 ----
 

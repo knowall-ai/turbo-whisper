@@ -1,4 +1,4 @@
-"""Auto-type functionality - cross-platform."""
+"""Auto-type functionality - cross-platform using PyAutoGUI and evdev."""
 
 import platform
 import shutil
@@ -12,23 +12,96 @@ class Typer:
 
     def __init__(self):
         self.system = SYSTEM
+        self._uinput = None
+        self._evdev_available = False
 
-        if self.system == "Windows":
-            try:
-                import pyperclip
-                self._pyperclip = pyperclip
-            except ImportError:
-                self._pyperclip = None
-                print("Warning: pyperclip not installed. Install with: pip install pyperclip")
-        else:
-            self._pyperclip = None
-            self.xdotool_available = shutil.which("xdotool") is not None
-            self.wtype_available = shutil.which("wtype") is not None
-            self.ydotool_available = shutil.which("ydotool") is not None
+        if self.system == "Linux":
+            self._setup_linux()
 
-            if not self.xdotool_available and not self.wtype_available and not self.ydotool_available:
-                print("Warning: No typing tool found. Auto-typing disabled.")
-                print("Install with: sudo apt install ydotool (Wayland) or xdotool (X11)")
+    def _setup_linux(self) -> None:
+        """Set up Linux typing backend (evdev for uinput access)."""
+        try:
+            import evdev
+            from evdev import UInput, ecodes
+
+            # Key mapping: character -> (keycode, needs_shift)
+            self._key_map = self._build_key_map(ecodes)
+            self._ecodes = ecodes
+
+            # Try to create UInput device
+            cap = {ecodes.EV_KEY: list(range(1, 128))}
+            self._uinput = UInput(cap, name="turbo-whisper-keyboard")
+            self._evdev_available = True
+            print("evdev UInput keyboard initialized")
+        except PermissionError:
+            print("evdev: Permission denied for /dev/uinput")
+            print("Fix with: sudo usermod -aG input $USER (then log out/in)")
+            self._evdev_available = False
+        except Exception as e:
+            print(f"evdev unavailable: {e}")
+            self._evdev_available = False
+
+    def _build_key_map(self, ecodes) -> dict:
+        """Build character to keycode mapping."""
+        # US QWERTY layout
+        key_map = {
+            # Letters (lowercase - no shift)
+            'a': (ecodes.KEY_A, False), 'b': (ecodes.KEY_B, False),
+            'c': (ecodes.KEY_C, False), 'd': (ecodes.KEY_D, False),
+            'e': (ecodes.KEY_E, False), 'f': (ecodes.KEY_F, False),
+            'g': (ecodes.KEY_G, False), 'h': (ecodes.KEY_H, False),
+            'i': (ecodes.KEY_I, False), 'j': (ecodes.KEY_J, False),
+            'k': (ecodes.KEY_K, False), 'l': (ecodes.KEY_L, False),
+            'm': (ecodes.KEY_M, False), 'n': (ecodes.KEY_N, False),
+            'o': (ecodes.KEY_O, False), 'p': (ecodes.KEY_P, False),
+            'q': (ecodes.KEY_Q, False), 'r': (ecodes.KEY_R, False),
+            's': (ecodes.KEY_S, False), 't': (ecodes.KEY_T, False),
+            'u': (ecodes.KEY_U, False), 'v': (ecodes.KEY_V, False),
+            'w': (ecodes.KEY_W, False), 'x': (ecodes.KEY_X, False),
+            'y': (ecodes.KEY_Y, False), 'z': (ecodes.KEY_Z, False),
+            # Letters (uppercase - with shift)
+            'A': (ecodes.KEY_A, True), 'B': (ecodes.KEY_B, True),
+            'C': (ecodes.KEY_C, True), 'D': (ecodes.KEY_D, True),
+            'E': (ecodes.KEY_E, True), 'F': (ecodes.KEY_F, True),
+            'G': (ecodes.KEY_G, True), 'H': (ecodes.KEY_H, True),
+            'I': (ecodes.KEY_I, True), 'J': (ecodes.KEY_J, True),
+            'K': (ecodes.KEY_K, True), 'L': (ecodes.KEY_L, True),
+            'M': (ecodes.KEY_M, True), 'N': (ecodes.KEY_N, True),
+            'O': (ecodes.KEY_O, True), 'P': (ecodes.KEY_P, True),
+            'Q': (ecodes.KEY_Q, True), 'R': (ecodes.KEY_R, True),
+            'S': (ecodes.KEY_S, True), 'T': (ecodes.KEY_T, True),
+            'U': (ecodes.KEY_U, True), 'V': (ecodes.KEY_V, True),
+            'W': (ecodes.KEY_W, True), 'X': (ecodes.KEY_X, True),
+            'Y': (ecodes.KEY_Y, True), 'Z': (ecodes.KEY_Z, True),
+            # Numbers
+            '1': (ecodes.KEY_1, False), '2': (ecodes.KEY_2, False),
+            '3': (ecodes.KEY_3, False), '4': (ecodes.KEY_4, False),
+            '5': (ecodes.KEY_5, False), '6': (ecodes.KEY_6, False),
+            '7': (ecodes.KEY_7, False), '8': (ecodes.KEY_8, False),
+            '9': (ecodes.KEY_9, False), '0': (ecodes.KEY_0, False),
+            # Shifted numbers (symbols)
+            '!': (ecodes.KEY_1, True), '@': (ecodes.KEY_2, True),
+            '#': (ecodes.KEY_3, True), '$': (ecodes.KEY_4, True),
+            '%': (ecodes.KEY_5, True), '^': (ecodes.KEY_6, True),
+            '&': (ecodes.KEY_7, True), '*': (ecodes.KEY_8, True),
+            '(': (ecodes.KEY_9, True), ')': (ecodes.KEY_0, True),
+            # Punctuation
+            ' ': (ecodes.KEY_SPACE, False),
+            '\n': (ecodes.KEY_ENTER, False),
+            '\t': (ecodes.KEY_TAB, False),
+            '-': (ecodes.KEY_MINUS, False), '_': (ecodes.KEY_MINUS, True),
+            '=': (ecodes.KEY_EQUAL, False), '+': (ecodes.KEY_EQUAL, True),
+            '[': (ecodes.KEY_LEFTBRACE, False), '{': (ecodes.KEY_LEFTBRACE, True),
+            ']': (ecodes.KEY_RIGHTBRACE, False), '}': (ecodes.KEY_RIGHTBRACE, True),
+            '\\': (ecodes.KEY_BACKSLASH, False), '|': (ecodes.KEY_BACKSLASH, True),
+            ';': (ecodes.KEY_SEMICOLON, False), ':': (ecodes.KEY_SEMICOLON, True),
+            "'": (ecodes.KEY_APOSTROPHE, False), '"': (ecodes.KEY_APOSTROPHE, True),
+            ',': (ecodes.KEY_COMMA, False), '<': (ecodes.KEY_COMMA, True),
+            '.': (ecodes.KEY_DOT, False), '>': (ecodes.KEY_DOT, True),
+            '/': (ecodes.KEY_SLASH, False), '?': (ecodes.KEY_SLASH, True),
+            '`': (ecodes.KEY_GRAVE, False), '~': (ecodes.KEY_GRAVE, True),
+        }
+        return key_map
 
     def type_text(self, text: str) -> bool:
         """
@@ -43,113 +116,80 @@ class Typer:
         if not text:
             return False
 
-        if self.system == "Windows":
-            return self._type_windows(text)
-        elif self.system == "Darwin":
-            return self._type_macos(text)
+        if self.system == "Windows" or self.system == "Darwin":
+            return self._type_pyautogui(text)
         else:
             return self._type_linux(text)
 
-    def _type_windows(self, text: str) -> bool:
-        """Type text on Windows using pyautogui or keyboard simulation."""
+    def _type_pyautogui(self, text: str) -> bool:
+        """Type text using PyAutoGUI (Windows/macOS)."""
         try:
-            # Copy to clipboard and paste (most reliable on Windows)
-            if self._pyperclip:
-                self._pyperclip.copy(text)
-                # Simulate Ctrl+V
-                import ctypes
-                user32 = ctypes.windll.user32
-                # Press Ctrl
-                user32.keybd_event(0x11, 0, 0, 0)
-                # Press V
-                user32.keybd_event(0x56, 0, 0, 0)
-                # Release V
-                user32.keybd_event(0x56, 0, 2, 0)
-                # Release Ctrl
-                user32.keybd_event(0x11, 0, 2, 0)
-                return True
-        except Exception as e:
-            print(f"Windows typing error: {e}")
-        return False
+            import pyautogui
+            import time
 
-    def _type_macos(self, text: str) -> bool:
-        """Type text on macOS using osascript."""
-        try:
-            # Escape text for AppleScript
-            escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-            subprocess.run(
-                ["osascript", "-e", f'tell application "System Events" to keystroke "{escaped}"'],
-                check=True,
-                capture_output=True,
-            )
+            # Small delay to let focus settle
+            time.sleep(0.1)
+            pyautogui.write(text, interval=0.01)
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"macOS typing error: {e}")
-        return False
+        except Exception as e:
+            print(f"PyAutoGUI typing error: {e}")
+            return self.copy_to_clipboard(text)
 
     def _type_linux(self, text: str) -> bool:
-        """Type text on Linux using ydotool, wtype, xdotool, or clipboard fallback."""
+        """Type text on Linux using evdev UInput."""
         import time
 
-        print(f"type_linux called with: {text[:50] if text else 'empty'}...", flush=True)
+        # Small delay to let focus settle after our window hides
+        time.sleep(0.15)
 
-        # Try ydotool first (works on KDE Wayland via uinput)
-        if self.ydotool_available:
+        if self._evdev_available and self._uinput:
             try:
-                print("Trying ydotool...", flush=True)
-                # Small delay to let window focus settle after our window hides
-                time.sleep(0.15)
-                subprocess.run(
-                    ["ydotool", "type", "--", text],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                print("ydotool succeeded", flush=True)
-                return True
-            except subprocess.CalledProcessError as e:
-                print(f"ydotool failed: {e.stderr if hasattr(e, 'stderr') else e}", flush=True)
-                pass  # Fall through to wtype
+                return self._type_evdev(text)
+            except Exception as e:
+                print(f"evdev typing failed: {e}")
 
-        # Try wtype (native Wayland, simpler compositors)
-        if self.wtype_available:
-            try:
-                print("Trying wtype...", flush=True)
-                subprocess.run(
-                    ["wtype", text],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                print("wtype succeeded", flush=True)
-                return True
-            except subprocess.CalledProcessError as e:
-                print(f"wtype failed: {e.stderr if hasattr(e, 'stderr') else e}", flush=True)
-                pass  # Fall through to xdotool
+        # Fallback to PyAutoGUI (works on X11)
+        try:
+            import pyautogui
+            pyautogui.write(text, interval=0.01)
+            return True
+        except Exception as e:
+            print(f"PyAutoGUI fallback failed: {e}")
 
-        # Try xdotool (X11 / XWayland apps)
-        if self.xdotool_available:
-            try:
-                # Longer delay to let window focus return to previous app
-                time.sleep(0.3)
-                print("Trying xdotool...", flush=True)
-                subprocess.run(
-                    ["xdotool", "type", "--delay", "10", "--clearmodifiers", "--", text],
-                    check=True,
-                    capture_output=True,
-                )
-                print("xdotool succeeded", flush=True)
-                return True
-            except subprocess.CalledProcessError as e:
-                print(f"xdotool failed: {e}", flush=True)
-                pass  # Fall through to clipboard
-
-        # Last resort: copy to clipboard
+        # Last resort: clipboard
         if self.copy_to_clipboard(text):
             print("Text copied to clipboard - press Ctrl+V to paste")
             return True
 
         return False
+
+    def _type_evdev(self, text: str) -> bool:
+        """Type text using evdev UInput (works on Wayland)."""
+        ecodes = self._ecodes
+
+        for char in text:
+            if char in self._key_map:
+                keycode, needs_shift = self._key_map[char]
+
+                if needs_shift:
+                    self._uinput.write(ecodes.EV_KEY, ecodes.KEY_LEFTSHIFT, 1)
+                    self._uinput.syn()
+
+                # Key press
+                self._uinput.write(ecodes.EV_KEY, keycode, 1)
+                self._uinput.syn()
+                # Key release
+                self._uinput.write(ecodes.EV_KEY, keycode, 0)
+                self._uinput.syn()
+
+                if needs_shift:
+                    self._uinput.write(ecodes.EV_KEY, ecodes.KEY_LEFTSHIFT, 0)
+                    self._uinput.syn()
+            else:
+                # Skip unsupported characters
+                print(f"Unsupported character: {repr(char)}")
+
+        return True
 
     def copy_to_clipboard(self, text: str) -> bool:
         """
@@ -162,12 +202,12 @@ class Typer:
             True if successful, False otherwise
         """
         if self.system == "Windows":
-            if self._pyperclip:
-                try:
-                    self._pyperclip.copy(text)
-                    return True
-                except Exception:
-                    pass
+            try:
+                import pyperclip
+                pyperclip.copy(text)
+                return True
+            except Exception:
+                pass
             return False
 
         if self.system == "Darwin":
@@ -182,41 +222,29 @@ class Typer:
                 pass
             return False
 
-        # Linux
-        # Try xclip first
-        if shutil.which("xclip"):
-            try:
-                proc = subprocess.Popen(
-                    ["xclip", "-selection", "clipboard"],
-                    stdin=subprocess.PIPE,
-                )
-                proc.communicate(input=text.encode())
-                return proc.returncode == 0
-            except Exception:
-                pass
+        # Linux - try multiple clipboard tools
+        clipboard_commands = [
+            ["wl-copy"],  # Wayland
+            ["xclip", "-selection", "clipboard"],  # X11
+            ["xsel", "--clipboard", "--input"],  # X11 alternative
+        ]
 
-        # Try xsel
-        if shutil.which("xsel"):
-            try:
-                proc = subprocess.Popen(
-                    ["xsel", "--clipboard", "--input"],
-                    stdin=subprocess.PIPE,
-                )
-                proc.communicate(input=text.encode())
-                return proc.returncode == 0
-            except Exception:
-                pass
-
-        # Try wl-copy (Wayland)
-        if shutil.which("wl-copy"):
-            try:
-                proc = subprocess.Popen(
-                    ["wl-copy"],
-                    stdin=subprocess.PIPE,
-                )
-                proc.communicate(input=text.encode())
-                return proc.returncode == 0
-            except Exception:
-                pass
+        for cmd in clipboard_commands:
+            if shutil.which(cmd[0]):
+                try:
+                    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+                    proc.communicate(input=text.encode())
+                    if proc.returncode == 0:
+                        return True
+                except Exception:
+                    pass
 
         return False
+
+    def __del__(self):
+        """Clean up UInput device."""
+        if self._uinput:
+            try:
+                self._uinput.close()
+            except Exception:
+                pass
