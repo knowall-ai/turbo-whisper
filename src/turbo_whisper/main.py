@@ -68,10 +68,6 @@ class RecordingWindow(QWidget):
         # Set window icon for taskbar (orange = idle)
         self.setWindowIcon(get_tray_icon(128, recording=False))
 
-    def update_icon(self, recording: bool) -> None:
-        """Update window icon based on recording state."""
-        self.setWindowIcon(get_tray_icon(128, recording=recording))
-
         # Frameless, always on top, floating window that doesn't steal focus
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -145,15 +141,15 @@ class RecordingWindow(QWidget):
         status_layout.addStretch()
 
         # Hint label - show configured hotkey
-        hotkey_str = "+".join(k.title() for k in self.config.hotkey)
-        hints = QLabel(f"Stop: {hotkey_str}")
-        hints.setStyleSheet(
+        self._hotkey_str = "+".join(k.title() for k in self.config.hotkey)
+        self.hints_label = QLabel(f"Start: {self._hotkey_str}")
+        self.hints_label.setStyleSheet(
             """
             color: #666;
             font-size: 10px;
         """
         )
-        status_layout.addWidget(hints)
+        status_layout.addWidget(self.hints_label)
 
         # Animated status timer
         self._status_dots = 0
@@ -463,16 +459,25 @@ class RecordingWindow(QWidget):
         self.version_label = QLabel("v0.1.0", container)
         self.version_label.setStyleSheet(
             """
-            color: #555;
-            font-size: 9px;
-            background: transparent;
+            color: #666;
+            font-size: 10px;
         """
         )
-        self.version_label.move(12, 10)
-        self.version_label.raise_()
+        self.version_label.move(12, 8)
 
         # Size
         self.setFixedSize(self.config.window_width, self.config.window_height)
+
+    def update_icon(self, recording: bool) -> None:
+        """Update window icon based on recording state."""
+        self.setWindowIcon(get_tray_icon(128, recording=recording))
+
+    def keyPressEvent(self, event) -> None:
+        """Handle key presses - ESC cancels recording."""
+        if event.key() == Qt.Key.Key_Escape:
+            self.cancel_requested.emit()
+        else:
+            super().keyPressEvent(event)
 
     def set_status(self, text: str, animate: bool = False) -> None:
         """Update status label."""
@@ -483,6 +488,11 @@ class RecordingWindow(QWidget):
             self._status_timer.start()
         else:
             self._status_timer.stop()
+
+    def set_recording_hint(self, recording: bool) -> None:
+        """Update hint text based on recording state."""
+        action = "Stop" if recording else "Start"
+        self.hints_label.setText(f"{action}: {self._hotkey_str}")
 
     def update_mic_level(self, level: float) -> None:
         """Update the mic level display in sensitivity slider (0.0 to 1.0 scale)."""
@@ -811,6 +821,7 @@ class TurboWhisper:
     def _show_window(self) -> None:
         """Show the window without starting recording."""
         self.window.waveform.set_recording(False)
+        self.window.set_recording_hint(recording=False)
         self._update_icons(recording=False)
         self.window.set_status("Ready", animate=False)
         self.window.center_on_screen()
@@ -835,6 +846,7 @@ class TurboWhisper:
 
         # Show window (don't steal focus from current app)
         self.window.waveform.set_recording(True)
+        self.window.set_recording_hint(recording=True)
         self.window.set_status("Listening", animate=True)
         self.window.center_on_screen()
         self.window.show()
@@ -886,6 +898,7 @@ class TurboWhisper:
 
         # Update UI
         self.window.waveform.set_recording(False)
+        self.window.set_recording_hint(recording=False)
         self.window.set_status("Processing", animate=True)
 
         # Stop recording and get audio
