@@ -81,6 +81,7 @@ class RecordingWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)  # Don't steal focus
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # Never accept keyboard focus
         # Allow resize via mouse
         self._resize_edge = None
 
@@ -804,9 +805,7 @@ class TurboWhisper:
 
     def _update_icons(self, recording: bool) -> None:
         """Update all icons based on recording state."""
-        icon = get_tray_icon(64, recording=recording)
-        self.tray.setIcon(icon)
-        self.app.setWindowIcon(get_tray_icon(128, recording=recording))
+        self.tray.setIcon(get_tray_icon(64, recording=recording))
         self.window.update_icon(recording=recording)
 
     def _show_window(self) -> None:
@@ -820,9 +819,6 @@ class TurboWhisper:
 
     def _toggle_recording(self) -> None:
         """Toggle recording state."""
-        # Always bring window to front so user knows recording state
-        if self.is_recording and self.window.isVisible():
-            self.window.raise_()
         if self.is_recording:
             self._stop_recording()
         else:
@@ -842,7 +838,6 @@ class TurboWhisper:
         self.window.set_status("Listening", animate=True)
         self.window.center_on_screen()
         self.window.show()
-        self.window.raise_()  # Ensure window is on top
 
         # Start waveform polling timer
         self._pending_waveform_data = None
