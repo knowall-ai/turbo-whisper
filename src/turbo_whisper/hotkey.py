@@ -44,9 +44,9 @@ class PortalHotkeyManager:
     def __init__(self, hotkey_combo: list[str], callback: Callable[[], None]):
         """Initialize portal hotkey manager."""
         # Import here to make dependencies optional
-        from gi.repository import GLib
         import dbus
         from dbus.mainloop.glib import DBusGMainLoop
+        from gi.repository import GLib
 
         self.callback = callback
         self.hotkey_combo = hotkey_combo
@@ -60,8 +60,7 @@ class PortalHotkeyManager:
         DBusGMainLoop(set_as_default=True)
         self._bus = dbus.SessionBus()
         self._portal = self._bus.get_object(
-            "org.freedesktop.portal.Desktop",
-            "/org/freedesktop/portal/desktop"
+            "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop"
         )
 
         self._GLib = GLib
@@ -91,7 +90,7 @@ class PortalHotkeyManager:
             signal_name="Activated",
             dbus_interface="org.freedesktop.portal.GlobalShortcuts",
             bus_name="org.freedesktop.portal.Desktop",
-            path=self._session
+            path=self._session,
         )
         print(f"Portal: Listening for Activated on {self._session}")
 
@@ -112,7 +111,7 @@ class PortalHotkeyManager:
                 shortcuts,
                 "",  # parent_window
                 {},  # options
-                dbus_interface="org.freedesktop.portal.GlobalShortcuts"
+                dbus_interface="org.freedesktop.portal.GlobalShortcuts",
             )
             print(f"Portal: Bound shortcut with preferred trigger: {self.hotkey_str}")
         except Exception as e:
@@ -138,8 +137,7 @@ class PortalHotkeyManager:
 
         try:
             reply = self._portal.CreateSession(
-                options,
-                dbus_interface="org.freedesktop.portal.GlobalShortcuts"
+                options, dbus_interface="org.freedesktop.portal.GlobalShortcuts"
             )
 
             # Listen for response
@@ -148,7 +146,7 @@ class PortalHotkeyManager:
                 signal_name="Response",
                 dbus_interface="org.freedesktop.portal.Request",
                 bus_name="org.freedesktop.portal.Desktop",
-                path=reply
+                path=reply,
             )
 
             print("Portal: Creating session...")
@@ -184,6 +182,7 @@ class HotkeyManager:
         """
         # Import here to make dependency optional (only needed on non-Wayland)
         from pynput import keyboard
+
         self._keyboard = keyboard
 
         self.callback = callback

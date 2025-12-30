@@ -21,7 +21,6 @@ class Typer:
     def _setup_linux(self) -> None:
         """Set up Linux typing backend (evdev for uinput access)."""
         try:
-            import evdev
             from evdev import UInput, ecodes
 
             # Key mapping: character -> (keycode, needs_shift)
@@ -46,60 +45,107 @@ class Typer:
         # US QWERTY layout
         key_map = {
             # Letters (lowercase - no shift)
-            'a': (ecodes.KEY_A, False), 'b': (ecodes.KEY_B, False),
-            'c': (ecodes.KEY_C, False), 'd': (ecodes.KEY_D, False),
-            'e': (ecodes.KEY_E, False), 'f': (ecodes.KEY_F, False),
-            'g': (ecodes.KEY_G, False), 'h': (ecodes.KEY_H, False),
-            'i': (ecodes.KEY_I, False), 'j': (ecodes.KEY_J, False),
-            'k': (ecodes.KEY_K, False), 'l': (ecodes.KEY_L, False),
-            'm': (ecodes.KEY_M, False), 'n': (ecodes.KEY_N, False),
-            'o': (ecodes.KEY_O, False), 'p': (ecodes.KEY_P, False),
-            'q': (ecodes.KEY_Q, False), 'r': (ecodes.KEY_R, False),
-            's': (ecodes.KEY_S, False), 't': (ecodes.KEY_T, False),
-            'u': (ecodes.KEY_U, False), 'v': (ecodes.KEY_V, False),
-            'w': (ecodes.KEY_W, False), 'x': (ecodes.KEY_X, False),
-            'y': (ecodes.KEY_Y, False), 'z': (ecodes.KEY_Z, False),
+            "a": (ecodes.KEY_A, False),
+            "b": (ecodes.KEY_B, False),
+            "c": (ecodes.KEY_C, False),
+            "d": (ecodes.KEY_D, False),
+            "e": (ecodes.KEY_E, False),
+            "f": (ecodes.KEY_F, False),
+            "g": (ecodes.KEY_G, False),
+            "h": (ecodes.KEY_H, False),
+            "i": (ecodes.KEY_I, False),
+            "j": (ecodes.KEY_J, False),
+            "k": (ecodes.KEY_K, False),
+            "l": (ecodes.KEY_L, False),
+            "m": (ecodes.KEY_M, False),
+            "n": (ecodes.KEY_N, False),
+            "o": (ecodes.KEY_O, False),
+            "p": (ecodes.KEY_P, False),
+            "q": (ecodes.KEY_Q, False),
+            "r": (ecodes.KEY_R, False),
+            "s": (ecodes.KEY_S, False),
+            "t": (ecodes.KEY_T, False),
+            "u": (ecodes.KEY_U, False),
+            "v": (ecodes.KEY_V, False),
+            "w": (ecodes.KEY_W, False),
+            "x": (ecodes.KEY_X, False),
+            "y": (ecodes.KEY_Y, False),
+            "z": (ecodes.KEY_Z, False),
             # Letters (uppercase - with shift)
-            'A': (ecodes.KEY_A, True), 'B': (ecodes.KEY_B, True),
-            'C': (ecodes.KEY_C, True), 'D': (ecodes.KEY_D, True),
-            'E': (ecodes.KEY_E, True), 'F': (ecodes.KEY_F, True),
-            'G': (ecodes.KEY_G, True), 'H': (ecodes.KEY_H, True),
-            'I': (ecodes.KEY_I, True), 'J': (ecodes.KEY_J, True),
-            'K': (ecodes.KEY_K, True), 'L': (ecodes.KEY_L, True),
-            'M': (ecodes.KEY_M, True), 'N': (ecodes.KEY_N, True),
-            'O': (ecodes.KEY_O, True), 'P': (ecodes.KEY_P, True),
-            'Q': (ecodes.KEY_Q, True), 'R': (ecodes.KEY_R, True),
-            'S': (ecodes.KEY_S, True), 'T': (ecodes.KEY_T, True),
-            'U': (ecodes.KEY_U, True), 'V': (ecodes.KEY_V, True),
-            'W': (ecodes.KEY_W, True), 'X': (ecodes.KEY_X, True),
-            'Y': (ecodes.KEY_Y, True), 'Z': (ecodes.KEY_Z, True),
+            "A": (ecodes.KEY_A, True),
+            "B": (ecodes.KEY_B, True),
+            "C": (ecodes.KEY_C, True),
+            "D": (ecodes.KEY_D, True),
+            "E": (ecodes.KEY_E, True),
+            "F": (ecodes.KEY_F, True),
+            "G": (ecodes.KEY_G, True),
+            "H": (ecodes.KEY_H, True),
+            "I": (ecodes.KEY_I, True),
+            "J": (ecodes.KEY_J, True),
+            "K": (ecodes.KEY_K, True),
+            "L": (ecodes.KEY_L, True),
+            "M": (ecodes.KEY_M, True),
+            "N": (ecodes.KEY_N, True),
+            "O": (ecodes.KEY_O, True),
+            "P": (ecodes.KEY_P, True),
+            "Q": (ecodes.KEY_Q, True),
+            "R": (ecodes.KEY_R, True),
+            "S": (ecodes.KEY_S, True),
+            "T": (ecodes.KEY_T, True),
+            "U": (ecodes.KEY_U, True),
+            "V": (ecodes.KEY_V, True),
+            "W": (ecodes.KEY_W, True),
+            "X": (ecodes.KEY_X, True),
+            "Y": (ecodes.KEY_Y, True),
+            "Z": (ecodes.KEY_Z, True),
             # Numbers
-            '1': (ecodes.KEY_1, False), '2': (ecodes.KEY_2, False),
-            '3': (ecodes.KEY_3, False), '4': (ecodes.KEY_4, False),
-            '5': (ecodes.KEY_5, False), '6': (ecodes.KEY_6, False),
-            '7': (ecodes.KEY_7, False), '8': (ecodes.KEY_8, False),
-            '9': (ecodes.KEY_9, False), '0': (ecodes.KEY_0, False),
+            "1": (ecodes.KEY_1, False),
+            "2": (ecodes.KEY_2, False),
+            "3": (ecodes.KEY_3, False),
+            "4": (ecodes.KEY_4, False),
+            "5": (ecodes.KEY_5, False),
+            "6": (ecodes.KEY_6, False),
+            "7": (ecodes.KEY_7, False),
+            "8": (ecodes.KEY_8, False),
+            "9": (ecodes.KEY_9, False),
+            "0": (ecodes.KEY_0, False),
             # Shifted numbers (symbols)
-            '!': (ecodes.KEY_1, True), '@': (ecodes.KEY_2, True),
-            '#': (ecodes.KEY_3, True), '$': (ecodes.KEY_4, True),
-            '%': (ecodes.KEY_5, True), '^': (ecodes.KEY_6, True),
-            '&': (ecodes.KEY_7, True), '*': (ecodes.KEY_8, True),
-            '(': (ecodes.KEY_9, True), ')': (ecodes.KEY_0, True),
+            "!": (ecodes.KEY_1, True),
+            "@": (ecodes.KEY_2, True),
+            "#": (ecodes.KEY_3, True),
+            "$": (ecodes.KEY_4, True),
+            "%": (ecodes.KEY_5, True),
+            "^": (ecodes.KEY_6, True),
+            "&": (ecodes.KEY_7, True),
+            "*": (ecodes.KEY_8, True),
+            "(": (ecodes.KEY_9, True),
+            ")": (ecodes.KEY_0, True),
             # Punctuation
-            ' ': (ecodes.KEY_SPACE, False),
-            '\n': (ecodes.KEY_ENTER, False),
-            '\t': (ecodes.KEY_TAB, False),
-            '-': (ecodes.KEY_MINUS, False), '_': (ecodes.KEY_MINUS, True),
-            '=': (ecodes.KEY_EQUAL, False), '+': (ecodes.KEY_EQUAL, True),
-            '[': (ecodes.KEY_LEFTBRACE, False), '{': (ecodes.KEY_LEFTBRACE, True),
-            ']': (ecodes.KEY_RIGHTBRACE, False), '}': (ecodes.KEY_RIGHTBRACE, True),
-            '\\': (ecodes.KEY_BACKSLASH, False), '|': (ecodes.KEY_BACKSLASH, True),
-            ';': (ecodes.KEY_SEMICOLON, False), ':': (ecodes.KEY_SEMICOLON, True),
-            "'": (ecodes.KEY_APOSTROPHE, False), '"': (ecodes.KEY_APOSTROPHE, True),
-            ',': (ecodes.KEY_COMMA, False), '<': (ecodes.KEY_COMMA, True),
-            '.': (ecodes.KEY_DOT, False), '>': (ecodes.KEY_DOT, True),
-            '/': (ecodes.KEY_SLASH, False), '?': (ecodes.KEY_SLASH, True),
-            '`': (ecodes.KEY_GRAVE, False), '~': (ecodes.KEY_GRAVE, True),
+            " ": (ecodes.KEY_SPACE, False),
+            "\n": (ecodes.KEY_ENTER, False),
+            "\t": (ecodes.KEY_TAB, False),
+            "-": (ecodes.KEY_MINUS, False),
+            "_": (ecodes.KEY_MINUS, True),
+            "=": (ecodes.KEY_EQUAL, False),
+            "+": (ecodes.KEY_EQUAL, True),
+            "[": (ecodes.KEY_LEFTBRACE, False),
+            "{": (ecodes.KEY_LEFTBRACE, True),
+            "]": (ecodes.KEY_RIGHTBRACE, False),
+            "}": (ecodes.KEY_RIGHTBRACE, True),
+            "\\": (ecodes.KEY_BACKSLASH, False),
+            "|": (ecodes.KEY_BACKSLASH, True),
+            ";": (ecodes.KEY_SEMICOLON, False),
+            ":": (ecodes.KEY_SEMICOLON, True),
+            "'": (ecodes.KEY_APOSTROPHE, False),
+            '"': (ecodes.KEY_APOSTROPHE, True),
+            ",": (ecodes.KEY_COMMA, False),
+            "<": (ecodes.KEY_COMMA, True),
+            ".": (ecodes.KEY_DOT, False),
+            ">": (ecodes.KEY_DOT, True),
+            "/": (ecodes.KEY_SLASH, False),
+            "?": (ecodes.KEY_SLASH, True),
+            "`": (ecodes.KEY_GRAVE, False),
+            "~": (ecodes.KEY_GRAVE, True),
         }
         return key_map
 
@@ -124,8 +170,9 @@ class Typer:
     def _type_pyautogui(self, text: str) -> bool:
         """Type text using PyAutoGUI (Windows/macOS)."""
         try:
-            import pyautogui
             import time
+
+            import pyautogui
 
             # Small delay to let focus settle
             time.sleep(0.1)
@@ -151,6 +198,7 @@ class Typer:
         # Fallback to PyAutoGUI (works on X11)
         try:
             import pyautogui
+
             pyautogui.write(text, interval=0.01)
             return True
         except Exception as e:
@@ -206,6 +254,7 @@ class Typer:
         if self.system == "Windows":
             try:
                 import pyperclip
+
                 pyperclip.copy(text)
                 return True
             except Exception:

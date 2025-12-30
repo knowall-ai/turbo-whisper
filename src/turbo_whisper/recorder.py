@@ -39,8 +39,7 @@ def get_pipewire_sources() -> list[dict]:
                 desc = line.split(":", 1)[1].strip()
                 current["description"] = desc
                 current["is_input"] = (
-                    "alsa_input" in current.get("name", "")
-                    and "Monitor" not in desc
+                    "alsa_input" in current.get("name", "") and "Monitor" not in desc
                 )
 
         if current and current.get("is_input"):
@@ -49,19 +48,6 @@ def get_pipewire_sources() -> list[dict]:
         return sources
     except Exception:
         return []
-
-
-def set_pipewire_default_source(source_id: str) -> bool:
-    """Set the default PipeWire audio source."""
-    try:
-        result = subprocess.run(
-            ["wpctl", "set-default", source_id],
-            capture_output=True,
-            timeout=5,
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
 
 
 class AudioRecorder:
@@ -103,12 +89,14 @@ class AudioRecorder:
             try:
                 info = self.audio.get_device_info_by_index(i)
                 if info["maxInputChannels"] > 0:
-                    devices.append({
-                        "index": i,
-                        "name": info["name"],
-                        "channels": info["maxInputChannels"],
-                        "sample_rate": int(info["defaultSampleRate"]),
-                    })
+                    devices.append(
+                        {
+                            "index": i,
+                            "name": info["name"],
+                            "channels": info["maxInputChannels"],
+                            "sample_rate": int(info["defaultSampleRate"]),
+                        }
+                    )
             except Exception:
                 pass
         return devices

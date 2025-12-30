@@ -51,9 +51,7 @@ class WhisperClient:
                 )
 
                 if response.status_code != 200:
-                    raise WhisperAPIError(
-                        f"API returned {response.status_code}: {response.text}"
-                    )
+                    raise WhisperAPIError(f"API returned {response.status_code}: {response.text}")
 
                 result = response.json()
                 return result.get("text", "").strip()
@@ -91,25 +89,15 @@ class WhisperClient:
                 )
 
                 if response.status_code == 401:
-                    raise WhisperAPIError(
-                        "Unauthorized - check your API key in settings"
-                    )
+                    raise WhisperAPIError("Unauthorized - check your API key in settings")
                 elif response.status_code == 403:
-                    raise WhisperAPIError(
-                        "Access denied - check your API key permissions"
-                    )
+                    raise WhisperAPIError("Access denied - check your API key permissions")
                 elif response.status_code == 404:
-                    raise WhisperAPIError(
-                        "API endpoint not found - check your API URL"
-                    )
+                    raise WhisperAPIError("API endpoint not found - check your API URL")
                 elif response.status_code >= 500:
-                    raise WhisperAPIError(
-                        "Server error - try again later"
-                    )
+                    raise WhisperAPIError("Server error - try again later")
                 elif response.status_code != 200:
-                    raise WhisperAPIError(
-                        f"API error ({response.status_code})"
-                    )
+                    raise WhisperAPIError(f"API error ({response.status_code})")
 
                 result = response.json()
                 return result.get("text", "").strip()

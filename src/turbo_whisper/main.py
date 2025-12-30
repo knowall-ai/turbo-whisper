@@ -6,7 +6,7 @@ import sys
 import threading
 
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -449,12 +449,8 @@ class RecordingWindow(QWidget):
         )
         self.close_btn.clicked.connect(self._close_window)
         # Hover behavior - change icon to green instead of background
-        self.close_btn.enterEvent = lambda e: self.close_btn.setIcon(
-            get_close_icon(14, "#84cc16")
-        )
-        self.close_btn.leaveEvent = lambda e: self.close_btn.setIcon(
-            get_close_icon(14, "#666666")
-        )
+        self.close_btn.enterEvent = lambda e: self.close_btn.setIcon(get_close_icon(14, "#84cc16"))
+        self.close_btn.leaveEvent = lambda e: self.close_btn.setIcon(get_close_icon(14, "#666666"))
         self.close_btn.move(self.config.window_width - 28, 8)  # Top-right corner
         self.close_btn.raise_()  # Bring to front
 
@@ -597,6 +593,7 @@ class RecordingWindow(QWidget):
     def _populate_mic_dropdown(self) -> None:
         """Populate the microphone dropdown with available devices."""
         import sys
+
         from .recorder import get_pipewire_sources
 
         self.mic_combo.clear()
@@ -615,6 +612,7 @@ class RecordingWindow(QWidget):
 
         # Fallback to PyAudio device enumeration
         import pyaudio
+
         try:
             audio = pyaudio.PyAudio()
             for i in range(audio.get_device_count()):
@@ -666,6 +664,7 @@ class RecordingWindow(QWidget):
             if timestamp:
                 try:
                     from datetime import datetime
+
                     dt = datetime.fromisoformat(timestamp)
                     time_str = dt.strftime("%H:%M") + " "
                 except ValueError:
@@ -707,9 +706,7 @@ class RecordingWindow(QWidget):
                 self.windowHandle().startSystemMove()
             else:
                 # Fallback for X11
-                self._drag_pos = (
-                    event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-                )
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
 
     def mouseMoveEvent(self, event) -> None:

@@ -64,7 +64,7 @@ class Config:
             }
             self.history.insert(0, entry)
             # Trim to max size
-            self.history = self.history[:self.history_max]
+            self.history = self.history[: self.history_max]
             self.save()
 
     @classmethod
