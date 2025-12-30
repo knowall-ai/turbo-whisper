@@ -2,6 +2,39 @@
 :toc:
 :toclevels: 3
 
+== Cross-Platform Compatibility Summary
+
+[cols="1,1,1,1,1"]
+|===
+|Platform |Typing |Hotkey |Audio |Window Focus
+
+|**Windows**
+|✅ PyAutoGUI
+|✅ pynput
+|✅ PyAudio
+|✅ Qt flags
+
+|**macOS**
+|✅ PyAutoGUI*
+|✅ pynput*
+|✅ PyAudio
+|✅ Qt flags
+
+|**Linux X11**
+|✅ PyAutoGUI/evdev
+|✅ pynput
+|✅ PyAudio
+|✅ Qt flags
+
+|**Linux Wayland**
+|✅ evdev
+|✅ pynput (XWayland)
+|✅ PyAudio+pipewire-alsa
+|✅ Qt flags
+|===
+
+_* Requires accessibility permissions on macOS (see <<Platform-Specific Permissions>>)_
+
 == Audio Recording
 
 === Cross-Platform Python Audio Libraries
