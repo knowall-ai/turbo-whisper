@@ -34,6 +34,8 @@ from .icons import (
     get_copy_icon,
     get_eye_icon,
     get_eye_off_icon,
+    get_play_icon,
+    get_stop_icon,
     get_tray_icon,
 )
 from .recorder import AudioRecorder
@@ -371,14 +373,14 @@ class RecordingWindow(QWidget):
         settings_layout.addWidget(self.sensitivity_slider)
 
         # History section
-        history_label = QLabel("Recent Clips (click to copy)")
+        history_label = QLabel("Recent Clips")
         settings_layout.addWidget(history_label)
 
         self.history_list = QListWidget()
-        self.history_list.setMinimumHeight(120)
-        self.history_list.setMaximumHeight(200)
+        self.history_list.setMinimumHeight(200)
+        self.history_list.setMaximumHeight(320)  # ~10 items at 32px each
         self.history_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.history_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.history_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.history_list.setStyleSheet(
             """
             QListWidget {
@@ -389,19 +391,14 @@ class RecordingWindow(QWidget):
                 font-size: 11px;
             }
             QListWidget::item {
-                padding: 6px;
+                padding: 2px;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             }
             QListWidget::item:hover {
                 background-color: rgba(132, 204, 22, 0.1);
             }
-            QListWidget::item:selected {
-                background-color: rgba(132, 204, 22, 0.2);
-                color: #84cc16;
-            }
         """
         )
-        self.history_list.itemClicked.connect(self._on_history_item_clicked)
         self._refresh_history()
         settings_layout.addWidget(self.history_list)
 
@@ -517,8 +514,8 @@ class RecordingWindow(QWidget):
         else:
             self.settings_panel.show()
             self.settings_btn.setIcon(get_chevron_up_icon(20, "#84cc16"))
-            # Expand window - make it tall enough for all settings
-            self.setFixedSize(self.config.window_width, self.config.window_height + 400)
+            # Expand window - make it tall enough for all settings + taller history
+            self.setFixedSize(self.config.window_width, self.config.window_height + 520)
 
     def _update_api_key_display(self) -> None:
         """Update the API key display based on visibility."""
@@ -670,36 +667,142 @@ class RecordingWindow(QWidget):
             if isinstance(entry, dict):
                 text = entry.get("text", "")
                 timestamp = entry.get("timestamp", "")
+                audio_file = entry.get("audio_file", "")
             else:
                 text = entry
                 timestamp = ""
+                audio_file = ""
 
-            # Format timestamp for display
+            # Format timestamp for display (date and time)
             time_str = ""
             if timestamp:
                 try:
                     from datetime import datetime
 
                     dt = datetime.fromisoformat(timestamp)
-                    time_str = dt.strftime("%H:%M") + " "
+                    time_str = dt.strftime("%b %d %H:%M") + " "  # "Dec 30 14:35"
                 except ValueError:
                     pass
 
-            # Truncate long entries for display
-            display = text[:50] + "..." if len(text) > 50 else text
-            display = f"{time_str}{display}"
-            item = QListWidgetItem(display)
-            item.setData(Qt.ItemDataRole.UserRole, text)  # Store full text
-            self.history_list.addItem(item)
+            # Create custom widget for this entry
+            widget = QWidget()
+            layout = QHBoxLayout(widget)
+            layout.setContentsMargins(4, 2, 4, 2)
+            layout.setSpacing(4)
 
-    def _on_history_item_clicked(self, item: QListWidgetItem) -> None:
-        """Copy history item to clipboard when clicked."""
-        full_text = item.data(Qt.ItemDataRole.UserRole)
-        self._copy_to_clipboard(full_text)
-        # Brief feedback
-        original_text = item.text()
-        item.setText("✓ Copied!")
-        QTimer.singleShot(1000, lambda: item.setText(original_text))
+            # Text label (truncated)
+            display = text[:40] + "..." if len(text) > 40 else text
+            display = f"{time_str}{display}"
+            label = QLabel(display)
+            label.setStyleSheet("color: #ccc; font-size: 11px;")
+            label.setToolTip(text)  # Full text on hover
+            layout.addWidget(label, stretch=1)
+
+            # Copy button
+            copy_btn = QPushButton()
+            copy_btn.setIcon(get_copy_icon(14, "#888"))
+            copy_btn.setFixedSize(24, 24)
+            copy_btn.setToolTip("Copy to clipboard")
+            copy_btn.setStyleSheet(
+                """
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background: rgba(132, 204, 22, 0.2);
+                }
+            """
+            )
+            copy_btn.clicked.connect(lambda checked, t=text: self._copy_history_item(t))
+            layout.addWidget(copy_btn)
+
+            # Play button (only if audio file exists)
+            if audio_file:
+                play_btn = QPushButton()
+                play_btn.setIcon(get_play_icon(14, "#888"))
+                play_btn.setFixedSize(24, 24)
+                play_btn.setToolTip("Play recording")
+                play_btn.setStyleSheet(
+                    """
+                    QPushButton {
+                        background: transparent;
+                        border: none;
+                        border-radius: 4px;
+                    }
+                    QPushButton:hover {
+                        background: rgba(132, 204, 22, 0.2);
+                    }
+                """
+                )
+                play_btn.clicked.connect(lambda checked, f=audio_file, b=play_btn: self._play_audio(f, b))
+                layout.addWidget(play_btn)
+
+            # Add item to list
+            item = QListWidgetItem()
+            item.setSizeHint(widget.sizeHint())
+            self.history_list.addItem(item)
+            self.history_list.setItemWidget(item, widget)
+
+    def _copy_history_item(self, text: str) -> None:
+        """Copy a history item to clipboard."""
+        self._copy_to_clipboard(text)
+        # Show brief status update
+        self._show_status("Copied!")
+
+    def _play_audio(self, filename: str, button: QPushButton) -> None:
+        """Play or stop an audio recording."""
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+
+        # If already playing this file, stop it
+        if hasattr(self, "_playing_button") and self._playing_button == button:
+            self._media_player.stop()
+            button.setIcon(get_play_icon(14, "#888"))
+            button.setToolTip("Play recording")
+            self._playing_button = None
+            return
+
+        audio_path = self.config.get_recordings_dir() / filename
+        if not audio_path.exists():
+            self._show_status("Audio file not found")
+            return
+
+        # Create or reuse media player
+        if not hasattr(self, "_media_player"):
+            self._media_player = QMediaPlayer()
+            self._audio_output = QAudioOutput()
+            self._media_player.setAudioOutput(self._audio_output)
+            # Connect to playback state changes
+            self._media_player.playbackStateChanged.connect(self._on_playback_state_changed)
+
+        # Stop any current playback and reset previous button
+        if hasattr(self, "_playing_button") and self._playing_button:
+            self._playing_button.setIcon(get_play_icon(14, "#888"))
+            self._playing_button.setToolTip("Play recording")
+        self._media_player.stop()
+
+        # Update button to stop icon
+        button.setIcon(get_stop_icon(14, "#888"))
+        button.setToolTip("Stop playback")
+        self._playing_button = button
+
+        # Play the file
+        self._media_player.setSource(QUrl.fromLocalFile(str(audio_path)))
+        self._audio_output.setVolume(1.0)
+        self._media_player.play()
+
+    def _on_playback_state_changed(self, state) -> None:
+        """Handle media player state changes."""
+        from PyQt6.QtMultimedia import QMediaPlayer
+
+        if state == QMediaPlayer.PlaybackState.StoppedState:
+            # Reset button icon when playback stops
+            if hasattr(self, "_playing_button") and self._playing_button:
+                self._playing_button.setIcon(get_play_icon(14, "#888"))
+                self._playing_button.setToolTip("Play recording")
+                self._playing_button = None
 
     def _close_window(self) -> None:
         """Close the window (emits cancel if recording)."""
@@ -818,6 +921,16 @@ class TurboWhisper:
         self.tray.setIcon(get_tray_icon(64, recording=recording))
         self.window.update_icon(recording=recording)
 
+    def _save_wav(self, path, audio_data: bytes) -> None:
+        """Save audio data as a WAV file."""
+        import wave
+
+        with wave.open(str(path), "wb") as wf:
+            wf.setnchannels(self.config.channels)
+            wf.setsampwidth(2)  # 16-bit audio = 2 bytes
+            wf.setframerate(self.config.sample_rate)
+            wf.writeframes(audio_data)
+
     def _show_window(self) -> None:
         """Show the window without starting recording."""
         self.window.waveform.set_recording(False)
@@ -904,6 +1017,23 @@ class TurboWhisper:
         # Stop recording and get audio
         audio_data = self.recorder.stop()
 
+        # Save audio to file if configured
+        audio_filename = None
+        if self.config.store_recordings and audio_data:
+            from datetime import datetime
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            audio_filename = f"{timestamp}.wav"
+            audio_path = self.config.get_recordings_dir() / audio_filename
+            try:
+                self._save_wav(audio_path, audio_data)
+            except Exception as e:
+                print(f"Warning: Could not save audio: {e}")
+                audio_filename = None
+
+        # Store for use in transcription callback
+        self._pending_audio_filename = audio_filename
+
         # Transcribe in background thread
         def transcribe():
             try:
@@ -938,9 +1068,13 @@ class TurboWhisper:
         """Handle completed transcription."""
         self.window.hide()
 
+        # Get the audio filename that was saved during _stop_recording
+        audio_filename = getattr(self, "_pending_audio_filename", None)
+        self._pending_audio_filename = None
+
         if text:
-            # Save to history
-            self.config.add_to_history(text)
+            # Save to history (with audio file if available)
+            self.config.add_to_history(text, audio_file=audio_filename)
             self.window._refresh_history()
 
             # Copy to clipboard
@@ -958,6 +1092,14 @@ class TurboWhisper:
                 2000,
             )
         else:
+            # Transcription failed - delete saved audio if any
+            if audio_filename:
+                audio_path = self.config.get_recordings_dir() / audio_filename
+                if audio_path.exists():
+                    try:
+                        audio_path.unlink()
+                    except OSError:
+                        pass
             self.tray.showMessage(
                 "Turbo Whisper",
                 "No speech detected",

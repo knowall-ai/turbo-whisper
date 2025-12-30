@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import TypedDict
 
 
-class HistoryEntry(TypedDict):
-    """A history entry with text and timestamp."""
+class HistoryEntry(TypedDict, total=False):
+    """A history entry with text, timestamp, and optional audio file."""
 
     text: str
     timestamp: str  # ISO format
+    audio_file: str  # Filename (not full path) of WAV recording
 
 
 @dataclass
@@ -47,14 +48,33 @@ class Config:
     # History (recent transcriptions)
     history: list[HistoryEntry] = field(default_factory=list)
     history_max: int = 20
+    store_recordings: bool = True  # Save audio files with transcriptions
 
-    def add_to_history(self, text: str) -> None:
-        """Add a transcription to history."""
+    def get_recordings_dir(self) -> Path:
+        """Get the directory for storing audio recordings."""
+        config_dir = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+        recordings_dir = config_dir / "turbo-whisper" / "recordings"
+        recordings_dir.mkdir(parents=True, exist_ok=True)
+        return recordings_dir
+
+    def add_to_history(self, text: str, audio_file: str | None = None) -> None:
+        """Add a transcription to history.
+
+        Args:
+            text: The transcribed text
+            audio_file: Optional filename of the WAV recording
+        """
         if text and text.strip():
-            # Remove if already exists (move to top)
+            # Remove if already exists (move to top) and delete old audio
             for i, entry in enumerate(self.history):
                 entry_text = entry["text"] if isinstance(entry, dict) else entry
                 if entry_text == text:
+                    # Delete old audio file if it exists
+                    old_audio = entry.get("audio_file") if isinstance(entry, dict) else None
+                    if old_audio:
+                        old_path = self.get_recordings_dir() / old_audio
+                        if old_path.exists():
+                            old_path.unlink()
                     self.history.pop(i)
                     break
             # Add to front with timestamp
@@ -62,10 +82,29 @@ class Config:
                 "text": text,
                 "timestamp": datetime.now().isoformat(),
             }
+            if audio_file:
+                entry["audio_file"] = audio_file
             self.history.insert(0, entry)
-            # Trim to max size
-            self.history = self.history[: self.history_max]
+            # Trim to max size and clean up old recordings
+            self._cleanup_old_recordings()
             self.save()
+
+    def _cleanup_old_recordings(self) -> None:
+        """Remove old recordings beyond history_max limit."""
+        # Get entries that will be removed
+        removed_entries = self.history[self.history_max :]
+        self.history = self.history[: self.history_max]
+
+        # Delete audio files for removed entries
+        recordings_dir = self.get_recordings_dir()
+        for entry in removed_entries:
+            if isinstance(entry, dict) and entry.get("audio_file"):
+                audio_path = recordings_dir / entry["audio_file"]
+                if audio_path.exists():
+                    try:
+                        audio_path.unlink()
+                    except OSError:
+                        pass  # Ignore errors deleting files
 
     @classmethod
     def get_config_path(cls) -> Path:

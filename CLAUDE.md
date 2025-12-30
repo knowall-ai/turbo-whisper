@@ -29,6 +29,8 @@ Current icons used:
 - `copy` - Copy to clipboard
 - `eye` / `eye-off` - Show/hide API key
 - `chevron-down` / `chevron-up` - Expand/collapse settings
+- `play` / `stop` - Audio playback controls
+- `check` - Success indicator
 
 To add a new icon:
 1. Find the icon at https://lucide.dev/icons/
@@ -97,7 +99,7 @@ Key settings:
 ## Testing
 
 When testing changes:
-1. **Kill all existing processes first**: `pkill -9 -f "turbo.whisper"; pkill -9 -f "turbo-whisper"`
+1. **Kill all existing processes first** (see below for proper kill commands)
 2. Ensure the waveform displays correctly during recording
 3. Verify hotkey works from other applications
 4. Test with both OpenAI API and self-hosted endpoints
@@ -105,21 +107,39 @@ When testing changes:
 
 **Important**: Multiple instances can run simultaneously and cause conflicts. Always kill all processes before starting a new test instance.
 
+### Killing All Processes (IMPORTANT)
+
+The app spawns multiple processes that must ALL be killed:
+- Python process: `turbo_whisper.main` or `turbo-whisper`
+- uv wrapper: `uv run turbo-whisper`
+- Parent shell wrappers (when run from Claude)
+
+**Reliable kill command:**
+```bash
+# Kill ALL turbo-related processes (catches all variations)
+pkill -9 -f "turbo"
+
+# Verify they're gone
+pgrep -af "turbo" || echo "All killed"
+```
+
+**Why simple patterns fail:**
+- `pkill -f "turbo_whisper"` misses `turbo-whisper` (hyphen vs underscore)
+- `pkill -f "turbo-whisper"` misses the Python module name
+- Neither catches `uv run turbo-whisper` wrapper process
+
+Using just `pkill -9 -f "turbo"` catches all variations since "turbo" is in every process name.
+
 ### Running the App (for Claude)
 
-**DO NOT run the app from Claude's bash commands.** The app requires access to the display (Wayland/X11) and D-Bus session, which are not available in Claude's subshell environment.
-
-Instead, ask the user to run it from their terminal:
+Claude CAN run the app using background execution. The display and D-Bus session are accessible.
 
 ```bash
-# Kill existing instances first
-pkill -9 -f "turbo_whisper"
+# Kill existing instances first, then start in background
+pkill -9 -f "turbo" 2>/dev/null; sleep 0.5
 
-# Run with uv (preferred)
-sg input -c "uv run turbo-whisper"
-
-# Or run directly
-sg input -c "uv run python -m turbo_whisper.main"
+# Run in background (use run_in_background=true in Bash tool)
+sg input -c "uv run turbo-whisper" 2>&1
 ```
 
 The `sg input -c` wrapper is needed on Linux/Wayland to access `/dev/uinput` for keyboard simulation (evdev).
