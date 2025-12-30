@@ -45,6 +45,11 @@ class Config:
     copy_to_clipboard: bool = True
     language: str = "en"
 
+    # Claude Code integration
+    claude_integration: bool = True  # Enable integration server for Claude Code
+    claude_integration_port: int = 7878  # Port for integration HTTP server
+    claude_wait_timeout: float = 5.0  # Max seconds to wait for Claude ready signal
+
     # History (recent transcriptions)
     history: list[HistoryEntry] = field(default_factory=list)
     history_max: int = 20

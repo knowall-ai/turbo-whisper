@@ -2,8 +2,10 @@
 
 import fcntl
 import os
+import subprocess
 import sys
 import threading
+import time
 
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction
@@ -932,6 +934,17 @@ class TurboWhisper:
         if self.hotkey_manager is None:
             print("Warning: Global hotkeys not available on this platform")
 
+        # Integration server for Claude Code
+        self.integration_server = None
+        if self.config.claude_integration:
+            from .integration_server import IntegrationServer
+
+            self.integration_server = IntegrationServer(self.config.claude_integration_port)
+            if self.integration_server.start():
+                print(f"Integration server started on port {self.config.claude_integration_port}")
+            else:
+                self.integration_server = None
+
     def _setup_tray(self) -> None:
         """Set up system tray icon."""
         self.tray = QSystemTrayIcon(self.app)
@@ -1115,6 +1128,43 @@ class TurboWhisper:
             # Update mic level meter (scale 0-1 to 0-100, cap at 100)
             self.window.update_mic_level(level)
 
+    def _is_claude_running(self) -> bool:
+        """Check if Claude Code process is running."""
+        try:
+            result = subprocess.run(
+                ["pgrep", "-x", "claude"],
+                capture_output=True,
+                timeout=1,
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
+    def _wait_for_claude_ready(self) -> bool:
+        """Wait for Claude to signal ready, with timeout.
+
+        Returns True if ready signal received or Claude not running.
+        Returns False if timed out waiting.
+        """
+        if not self.config.claude_integration or not self.integration_server:
+            return True
+
+        # Only wait if Claude is actually running
+        if not self._is_claude_running():
+            return True
+
+        from .integration_server import IntegrationServer
+
+        timeout = self.config.claude_wait_timeout
+        start = time.time()
+        while (time.time() - start) < timeout:
+            if IntegrationServer.is_ready(max_age=timeout):
+                # Reset so we wait again next time
+                IntegrationServer.reset_ready()
+                return True
+            time.sleep(0.1)
+        return False
+
     def _on_transcription_complete(self, text: str) -> None:
         """Handle completed transcription."""
         self.window.hide()
@@ -1132,16 +1182,35 @@ class TurboWhisper:
             if self.config.copy_to_clipboard:
                 self.typer.copy_to_clipboard(text)
 
-            # Type into focused window
+            # Type into focused window (wait for Claude if running)
             if self.config.auto_paste:
-                self.typer.type_text(text)
-
-            self.tray.showMessage(
-                "Turbo Whisper",
-                f"Transcribed: {text[:50]}..." if len(text) > 50 else f"Transcribed: {text}",
-                QSystemTrayIcon.MessageIcon.Information,
-                2000,
-            )
+                if self._wait_for_claude_ready():
+                    self.typer.type_text(text)
+                    self.tray.showMessage(
+                        "Turbo Whisper",
+                        f"Transcribed: {text[:50]}..."
+                        if len(text) > 50
+                        else f"Transcribed: {text}",
+                        QSystemTrayIcon.MessageIcon.Information,
+                        2000,
+                    )
+                else:
+                    # Timeout waiting for Claude - just show copied message
+                    self.tray.showMessage(
+                        "Turbo Whisper",
+                        "Copied (Claude busy)",
+                        QSystemTrayIcon.MessageIcon.Information,
+                        2000,
+                    )
+            else:
+                self.tray.showMessage(
+                    "Turbo Whisper",
+                    f"Transcribed: {text[:50]}..."
+                    if len(text) > 50
+                    else f"Transcribed: {text}",
+                    QSystemTrayIcon.MessageIcon.Information,
+                    2000,
+                )
         else:
             # Transcription failed - delete saved audio if any
             if audio_filename:
@@ -1172,6 +1241,8 @@ class TurboWhisper:
         """Clean up and quit application."""
         if self.hotkey_manager:
             self.hotkey_manager.stop()
+        if self.integration_server:
+            self.integration_server.stop()
         self.recorder.cleanup()
         self.app.quit()
 

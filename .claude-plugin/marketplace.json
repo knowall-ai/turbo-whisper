@@ -1,0 +1,22 @@
+{
+  "name": "turbo-whisper-marketplace",
+  "owner": {
+    "name": "KnowAll AI",
+    "email": "support@knowall.ai",
+    "url": "https://github.com/knowall-ai"
+  },
+  "metadata": {
+    "description": "Turbo Whisper voice dictation plugins",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "turbo-whisper-integration",
+      "description": "Enables voice dictation with Turbo Whisper - signals when Claude is ready for input",
+      "source": {
+        "type": "path",
+        "path": "claude-plugin"
+      }
+    }
+  ]
+}

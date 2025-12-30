@@ -1,0 +1,36 @@
+{
+  "name": "turbo-whisper-integration",
+  "version": "1.0.0",
+  "description": "Enables voice dictation with Turbo Whisper - signals when Claude is ready for input",
+  "author": {
+    "name": "KnowAll AI",
+    "url": "https://github.com/knowall-ai"
+  },
+  "repository": "https://github.com/knowall-ai/turbo-whisper",
+  "homepage": "https://github.com/knowall-ai/turbo-whisper",
+  "license": "MIT",
+  "keywords": ["voice", "dictation", "turbo-whisper", "speech-to-text"],
+  "hooks": {
+    "Stop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/signal-ready.sh"
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "AskUserQuestion",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/signal-ready.sh"
+      }]
+    }],
+    "SubagentStop": [{
+      "matcher": "",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/signal-ready.sh"
+      }]
+    }]
+  }
+}
