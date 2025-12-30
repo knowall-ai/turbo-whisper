@@ -53,6 +53,40 @@ class SignalBridge(QObject):
     show_status = pyqtSignal(str)
 
 
+class TickMarksWidget(QWidget):
+    """Widget that draws tick mark notches for a slider."""
+
+    def __init__(self, num_ticks: int = 11, parent=None):
+        super().__init__(parent)
+        self.num_ticks = num_ticks  # 0%, 20%, 40%... 200% = 11 ticks
+        self.setFixedHeight(6)
+
+    def paintEvent(self, event):
+        from PyQt6.QtGui import QColor, QPainter, QPen
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        pen = QPen(QColor("#666"))
+        pen.setWidth(1)
+        painter.setPen(pen)
+
+        width = self.width()
+        # Account for slider handle padding (roughly 8px on each side)
+        padding = 8
+        usable_width = width - 2 * padding
+
+        for i in range(self.num_ticks):
+            x = padding + int(i * usable_width / (self.num_ticks - 1))
+            # Draw shorter tick for non-100% marks, taller for 100% (middle)
+            if i == 5:  # 100% mark (middle)
+                painter.drawLine(x, 0, x, 5)
+            else:
+                painter.drawLine(x, 2, x, 5)
+
+        painter.end()
+
+
 class RecordingWindow(QWidget):
     """Floating window showing waveform during recording."""
 
@@ -364,6 +398,8 @@ class RecordingWindow(QWidget):
         self.sensitivity_slider = QSlider(Qt.Orientation.Horizontal)
         self.sensitivity_slider.setRange(0, 200)
         self.sensitivity_slider.setValue(100)  # 100% = no gain adjustment
+        self.sensitivity_slider.setSingleStep(20)  # Arrow keys move by 20%
+        self.sensitivity_slider.setPageStep(20)  # Page up/down move by 20%
         self.sensitivity_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.sensitivity_slider.setTickInterval(20)  # Tick every 20% (20 units = 20%)
         self.sensitivity_slider.valueChanged.connect(self._on_sensitivity_changed)
@@ -371,6 +407,10 @@ class RecordingWindow(QWidget):
         self._update_sensitivity_style()
         settings_layout.addLayout(gain_row)
         settings_layout.addWidget(self.sensitivity_slider)
+
+        # Tick marks below slider (visual notches at 20% intervals)
+        tick_marks = TickMarksWidget(num_ticks=11)  # 0%, 20%, 40%... 200%
+        settings_layout.addWidget(tick_marks)
 
         # History section
         history_label = QLabel("Recent Clips")
@@ -558,7 +598,15 @@ class RecordingWindow(QWidget):
             QTimer.singleShot(1500, lambda: button.setIcon(original_icon))
 
     def _on_sensitivity_changed(self, value: int) -> None:
-        """Handle gain slider change - update in real-time."""
+        """Handle gain slider change - update in real-time with 20% snapping."""
+        # Snap to nearest 20% increment
+        snapped = round(value / 20) * 20
+        if snapped != value:
+            self.sensitivity_slider.blockSignals(True)
+            self.sensitivity_slider.setValue(snapped)
+            self.sensitivity_slider.blockSignals(False)
+            value = snapped
+
         self.waveform.sensitivity = value
         self.gain_value_label.setText(f"{value}%")
         self._update_sensitivity_style()
@@ -580,14 +628,15 @@ class RecordingWindow(QWidget):
                     stop:{min(1.0, level_pct / 100 + 0.01):.2f} #333,
                     stop:1 #333
                 );
-                height: 6px;
-                border-radius: 3px;
+                height: 8px;
+                border-radius: 4px;
             }}
             QSlider::handle:horizontal {{
                 background: #fff;
-                width: 14px;
-                margin: -4px 0;
-                border-radius: 7px;
+                width: 16px;
+                height: 16px;
+                margin: -5px 0;
+                border-radius: 8px;
                 border: 2px solid #84cc16;
             }}
             QSlider::sub-page:horizontal {{
@@ -597,7 +646,7 @@ class RecordingWindow(QWidget):
                 background: transparent;
             }}
             QSlider {{
-                height: 20px;
+                height: 24px;
             }}
         """
         )
@@ -736,7 +785,9 @@ class RecordingWindow(QWidget):
                     }
                 """
                 )
-                play_btn.clicked.connect(lambda checked, f=audio_file, b=play_btn: self._play_audio(f, b))
+                play_btn.clicked.connect(
+                    lambda checked, f=audio_file, b=play_btn: self._play_audio(f, b)
+                )
                 layout.addWidget(play_btn)
 
             # Add item to list
