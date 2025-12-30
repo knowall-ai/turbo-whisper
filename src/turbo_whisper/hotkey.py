@@ -273,6 +273,10 @@ class HotkeyManager:
             now = time.time() * 1000
             if now - self._last_trigger > self._debounce_ms:
                 self._last_trigger = now
+                # Clear key state to ensure next press re-triggers
+                # (release events may be lost when window is shown)
+                self.current_keys.clear()
+                self.current_chars.clear()
                 self.callback()
 
     def _on_release(self, key) -> None:

@@ -800,14 +800,11 @@ class TurboWhisper:
 
     def _start_recording(self) -> None:
         """Start recording audio."""
-        print("_start_recording called")
         if self.is_recording:
-            print("Already recording, returning")
             return
 
         self.is_recording = True
         self.toggle_action.setText("Stop Recording")
-        print("Starting recording...")
 
         # Show window (don't steal focus from current app)
         self.window.waveform.set_recording(True)

@@ -105,6 +105,25 @@ When testing changes:
 
 **Important**: Multiple instances can run simultaneously and cause conflicts. Always kill all processes before starting a new test instance.
 
+### Running the App (for Claude)
+
+**DO NOT run the app from Claude's bash commands.** The app requires access to the display (Wayland/X11) and D-Bus session, which are not available in Claude's subshell environment.
+
+Instead, ask the user to run it from their terminal:
+
+```bash
+# Kill existing instances first
+pkill -9 -f "turbo_whisper"
+
+# Run with uv (preferred)
+sg input -c "uv run turbo-whisper"
+
+# Or run directly
+sg input -c "uv run python -m turbo_whisper.main"
+```
+
+The `sg input -c` wrapper is needed on Linux/Wayland to access `/dev/uinput` for keyboard simulation (evdev).
+
 ## Documentation
 
 Keep the `/docs/` directory up to date:

@@ -140,7 +140,7 @@ class Typer:
         import time
 
         # Small delay to let focus settle after our window hides
-        time.sleep(0.15)
+        time.sleep(0.05)
 
         if self._evdev_available and self._uinput:
             try:
@@ -165,6 +165,8 @@ class Typer:
 
     def _type_evdev(self, text: str) -> bool:
         """Type text using evdev UInput (works on Wayland)."""
+        import time
+
         ecodes = self._ecodes
 
         for char in text:
@@ -185,9 +187,9 @@ class Typer:
                 if needs_shift:
                     self._uinput.write(ecodes.EV_KEY, ecodes.KEY_LEFTSHIFT, 0)
                     self._uinput.syn()
-            else:
-                # Skip unsupported characters
-                print(f"Unsupported character: {repr(char)}")
+
+                # Small delay between characters to prevent dropped keystrokes
+                time.sleep(0.005)
 
         return True
 
