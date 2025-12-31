@@ -1,10 +1,8 @@
 #!/bin/bash
 # Signal Turbo Whisper that Claude is ready for input
 
-# Try to send ready signal to Turbo Whisper
-if curl -s -X POST http://localhost:7878/ready >/dev/null 2>&1; then
-    exit 0
-fi
+echo "[Hook] signal-ready.sh called at $(date)" >> /tmp/turbo-whisper-hook.log
 
-# Turbo Whisper not running - exit silently (user may not have it installed)
+# Try to send ready signal to Turbo Whisper (1s timeout, full path)
+/usr/bin/curl -s -m 1 -X POST http://localhost:7878/ready >> /tmp/turbo-whisper-hook.log 2>&1 || echo "[Hook] curl failed" >> /tmp/turbo-whisper-hook.log
 exit 0

@@ -15,6 +15,7 @@ class IntegrationHandler(BaseHTTPRequestHandler):
         """Handle POST requests."""
         if self.path == "/ready":
             IntegrationHandler.ready_timestamp = time.time()
+            print("[Claude] Ready signal received")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()

@@ -101,6 +101,11 @@ class RecordingWindow(QWidget):
         self._drag_pos = None  # For dragging support
         self._setup_ui()
 
+        # Timer to refresh Claude status while settings panel is open
+        self._claude_status_timer = QTimer()
+        self._claude_status_timer.timeout.connect(self._update_claude_status)
+        self._claude_status_timer.setInterval(1000)  # Update every second
+
     def _setup_ui(self) -> None:
         """Set up the recording window UI."""
         # Set window icon for taskbar (orange = idle)
@@ -444,6 +449,19 @@ class RecordingWindow(QWidget):
         self._refresh_history()
         settings_layout.addWidget(self.history_list)
 
+        # Claude integration status
+        claude_row = QHBoxLayout()
+        claude_row.setSpacing(8)
+        claude_label = QLabel("Claude Code")
+        claude_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.claude_status = QLabel()
+        self.claude_status.setStyleSheet("font-size: 11px;")
+        self._update_claude_status()
+        claude_row.addWidget(claude_label)
+        claude_row.addWidget(self.claude_status)
+        claude_row.addStretch()
+        settings_layout.addLayout(claude_row)
+
         # Save button - at the bottom, vibrant green
         self.save_btn = QPushButton("Save Settings")
         self.save_btn.setStyleSheet(
@@ -553,11 +571,16 @@ class RecordingWindow(QWidget):
             self.settings_btn.setIcon(get_chevron_down_icon(20, "#84cc16"))
             # Shrink window
             self.setFixedSize(self.config.window_width, self.config.window_height)
+            # Stop Claude status updates
+            self._claude_status_timer.stop()
         else:
             self.settings_panel.show()
             self.settings_btn.setIcon(get_chevron_up_icon(20, "#84cc16"))
             # Expand window - make it tall enough for all settings + taller history
             self.setFixedSize(self.config.window_width, self.config.window_height + 520)
+            # Refresh Claude status and start auto-update timer
+            self._update_claude_status()
+            self._claude_status_timer.start()
 
     def _update_api_key_display(self) -> None:
         """Update the API key display based on visibility."""
@@ -709,6 +732,36 @@ class RecordingWindow(QWidget):
         # Brief confirmation
         self.save_btn.setText("✓ Saved!")
         QTimer.singleShot(1500, lambda: self.save_btn.setText("Save Settings"))
+
+    def _update_claude_status(self) -> None:
+        """Update the Claude integration status indicator."""
+        if not self.config.claude_integration:
+            self.claude_status.setText("Disabled")
+            self.claude_status.setStyleSheet("color: #666; font-size: 11px;")
+            return
+
+        # Check integration server status - simple Ready/Busy display
+        try:
+            import json
+            import urllib.request
+
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{self.config.claude_integration_port}/status",
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                data = json.loads(resp.read().decode())
+                age = data.get("last_signal_age", 999)
+                # Ready if signal within last 30 seconds (matches typing logic)
+                if age < 30:
+                    self.claude_status.setText("Ready")
+                    self.claude_status.setStyleSheet("color: #84cc16; font-size: 11px;")
+                else:
+                    self.claude_status.setText("Busy")
+                    self.claude_status.setStyleSheet("color: #f59e0b; font-size: 11px;")
+        except Exception:
+            self.claude_status.setText("Server error")
+            self.claude_status.setStyleSheet("color: #f59e0b; font-size: 11px;")
 
     def _refresh_history(self) -> None:
         """Refresh the history list from config."""
@@ -1155,11 +1208,16 @@ class TurboWhisper:
 
         from .integration_server import IntegrationServer
 
+        # Accept signal from last 30 seconds (covers recording + transcription time)
+        if IntegrationServer.is_ready(max_age=30.0):
+            IntegrationServer.reset_ready()
+            return True
+
+        # Otherwise wait for a new signal
         timeout = self.config.claude_wait_timeout
         start = time.time()
         while (time.time() - start) < timeout:
-            if IntegrationServer.is_ready(max_age=timeout):
-                # Reset so we wait again next time
+            if IntegrationServer.is_ready(max_age=1.0):
                 IntegrationServer.reset_ready()
                 return True
             time.sleep(0.1)
