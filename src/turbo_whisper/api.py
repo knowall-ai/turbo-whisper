@@ -39,6 +39,7 @@ class WhisperClient:
             "model": "whisper-1",  # Ignored by faster-whisper-server but required by OpenAI
             "language": self.config.language,
             "response_format": "json",
+            "prompt": "Use proper punctuation: commas, periods, question marks.",
         }
 
         try:
@@ -77,6 +78,7 @@ class WhisperClient:
             "model": "whisper-1",
             "language": self.config.language,
             "response_format": "json",
+            "prompt": "Use proper punctuation: commas, periods, question marks.",
         }
 
         try:

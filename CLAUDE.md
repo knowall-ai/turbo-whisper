@@ -116,19 +116,17 @@ The app spawns multiple processes that must ALL be killed:
 
 **Reliable kill command:**
 ```bash
-# Kill ALL turbo-related processes (catches all variations)
-pkill -9 -f "turbo"
+# Kill ALL turbo-whisper processes (catches all variations)
+pkill -9 -f "turbo.whisper"
 
 # Verify they're gone
-pgrep -af "turbo" || echo "All killed"
+pgrep -af "turbo.whisper" || echo "All killed"
 ```
 
-**Why simple patterns fail:**
-- `pkill -f "turbo_whisper"` misses `turbo-whisper` (hyphen vs underscore)
-- `pkill -f "turbo-whisper"` misses the Python module name
-- Neither catches `uv run turbo-whisper` wrapper process
-
-Using just `pkill -9 -f "turbo"` catches all variations since "turbo" is in every process name.
+**Why this pattern works:**
+- `turbo.whisper` matches both `turbo-whisper` and `turbo_whisper` (regex dot matches any char)
+- Catches: `turbo-whisper`, `turbo_whisper.main`, `uv run turbo-whisper`
+- Does NOT match other turbo projects (e.g., `turbo-translator`)
 
 ### Running the App (for Claude)
 
@@ -136,7 +134,7 @@ Claude CAN run the app using background execution. The display and D-Bus session
 
 ```bash
 # Kill existing instances first, then start in background
-pkill -9 -f "turbo" 2>/dev/null; sleep 0.5
+pkill -9 -f "turbo.whisper" 2>/dev/null; sleep 0.5
 
 # Run in background (use run_in_background=true in Bash tool)
 sg input -c "uv run turbo-whisper" 2>&1

@@ -2,8 +2,10 @@
 
 import fcntl
 import os
+import subprocess
 import sys
 import threading
+import time
 
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction
@@ -98,6 +100,11 @@ class RecordingWindow(QWidget):
         self.config = config
         self._drag_pos = None  # For dragging support
         self._setup_ui()
+
+        # Timer to refresh Claude status while settings panel is open
+        self._claude_status_timer = QTimer()
+        self._claude_status_timer.timeout.connect(self._update_claude_status)
+        self._claude_status_timer.setInterval(1000)  # Update every second
 
     def _setup_ui(self) -> None:
         """Set up the recording window UI."""
@@ -442,6 +449,19 @@ class RecordingWindow(QWidget):
         self._refresh_history()
         settings_layout.addWidget(self.history_list)
 
+        # Claude integration status
+        claude_row = QHBoxLayout()
+        claude_row.setSpacing(8)
+        claude_label = QLabel("Claude Code")
+        claude_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.claude_status = QLabel()
+        self.claude_status.setStyleSheet("font-size: 11px;")
+        self._update_claude_status()
+        claude_row.addWidget(claude_label)
+        claude_row.addWidget(self.claude_status)
+        claude_row.addStretch()
+        settings_layout.addLayout(claude_row)
+
         # Save button - at the bottom, vibrant green
         self.save_btn = QPushButton("Save Settings")
         self.save_btn.setStyleSheet(
@@ -551,11 +571,16 @@ class RecordingWindow(QWidget):
             self.settings_btn.setIcon(get_chevron_down_icon(20, "#84cc16"))
             # Shrink window
             self.setFixedSize(self.config.window_width, self.config.window_height)
+            # Stop Claude status updates
+            self._claude_status_timer.stop()
         else:
             self.settings_panel.show()
             self.settings_btn.setIcon(get_chevron_up_icon(20, "#84cc16"))
             # Expand window - make it tall enough for all settings + taller history
             self.setFixedSize(self.config.window_width, self.config.window_height + 520)
+            # Refresh Claude status and start auto-update timer
+            self._update_claude_status()
+            self._claude_status_timer.start()
 
     def _update_api_key_display(self) -> None:
         """Update the API key display based on visibility."""
@@ -707,6 +732,36 @@ class RecordingWindow(QWidget):
         # Brief confirmation
         self.save_btn.setText("✓ Saved!")
         QTimer.singleShot(1500, lambda: self.save_btn.setText("Save Settings"))
+
+    def _update_claude_status(self) -> None:
+        """Update the Claude integration status indicator."""
+        if not self.config.claude_integration:
+            self.claude_status.setText("Disabled")
+            self.claude_status.setStyleSheet("color: #666; font-size: 11px;")
+            return
+
+        # Check integration server status - simple Ready/Busy display
+        try:
+            import json
+            import urllib.request
+
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{self.config.claude_integration_port}/status",
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                data = json.loads(resp.read().decode())
+                age = data.get("last_signal_age", 999)
+                # Ready if signal within last 30 seconds (matches typing logic)
+                if age < 30:
+                    self.claude_status.setText("Ready")
+                    self.claude_status.setStyleSheet("color: #84cc16; font-size: 11px;")
+                else:
+                    self.claude_status.setText("Busy")
+                    self.claude_status.setStyleSheet("color: #f59e0b; font-size: 11px;")
+        except Exception:
+            self.claude_status.setText("Server error")
+            self.claude_status.setStyleSheet("color: #f59e0b; font-size: 11px;")
 
     def _refresh_history(self) -> None:
         """Refresh the history list from config."""
@@ -932,6 +987,17 @@ class TurboWhisper:
         if self.hotkey_manager is None:
             print("Warning: Global hotkeys not available on this platform")
 
+        # Integration server for Claude Code
+        self.integration_server = None
+        if self.config.claude_integration:
+            from .integration_server import IntegrationServer
+
+            self.integration_server = IntegrationServer(self.config.claude_integration_port)
+            if self.integration_server.start():
+                print(f"Integration server started on port {self.config.claude_integration_port}")
+            else:
+                self.integration_server = None
+
     def _setup_tray(self) -> None:
         """Set up system tray icon."""
         self.tray = QSystemTrayIcon(self.app)
@@ -1115,6 +1181,48 @@ class TurboWhisper:
             # Update mic level meter (scale 0-1 to 0-100, cap at 100)
             self.window.update_mic_level(level)
 
+    def _is_claude_running(self) -> bool:
+        """Check if Claude Code process is running."""
+        try:
+            result = subprocess.run(
+                ["pgrep", "-x", "claude"],
+                capture_output=True,
+                timeout=1,
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+
+    def _wait_for_claude_ready(self) -> bool:
+        """Wait for Claude to signal ready, with timeout.
+
+        Returns True if ready signal received or Claude not running.
+        Returns False if timed out waiting.
+        """
+        if not self.config.claude_integration or not self.integration_server:
+            return True
+
+        # Only wait if Claude is actually running
+        if not self._is_claude_running():
+            return True
+
+        from .integration_server import IntegrationServer
+
+        # Accept signal from last 30 seconds (covers recording + transcription time)
+        if IntegrationServer.is_ready(max_age=30.0):
+            IntegrationServer.reset_ready()
+            return True
+
+        # Otherwise wait for a new signal
+        timeout = self.config.claude_wait_timeout
+        start = time.time()
+        while (time.time() - start) < timeout:
+            if IntegrationServer.is_ready(max_age=1.0):
+                IntegrationServer.reset_ready()
+                return True
+            time.sleep(0.1)
+        return False
+
     def _on_transcription_complete(self, text: str) -> None:
         """Handle completed transcription."""
         self.window.hide()
@@ -1132,16 +1240,35 @@ class TurboWhisper:
             if self.config.copy_to_clipboard:
                 self.typer.copy_to_clipboard(text)
 
-            # Type into focused window
+            # Type into focused window (wait for Claude if running)
             if self.config.auto_paste:
-                self.typer.type_text(text)
-
-            self.tray.showMessage(
-                "Turbo Whisper",
-                f"Transcribed: {text[:50]}..." if len(text) > 50 else f"Transcribed: {text}",
-                QSystemTrayIcon.MessageIcon.Information,
-                2000,
-            )
+                if self._wait_for_claude_ready():
+                    self.typer.type_text(text)
+                    self.tray.showMessage(
+                        "Turbo Whisper",
+                        f"Transcribed: {text[:50]}..."
+                        if len(text) > 50
+                        else f"Transcribed: {text}",
+                        QSystemTrayIcon.MessageIcon.Information,
+                        2000,
+                    )
+                else:
+                    # Timeout waiting for Claude - just show copied message
+                    self.tray.showMessage(
+                        "Turbo Whisper",
+                        "Copied (Claude busy)",
+                        QSystemTrayIcon.MessageIcon.Information,
+                        2000,
+                    )
+            else:
+                self.tray.showMessage(
+                    "Turbo Whisper",
+                    f"Transcribed: {text[:50]}..."
+                    if len(text) > 50
+                    else f"Transcribed: {text}",
+                    QSystemTrayIcon.MessageIcon.Information,
+                    2000,
+                )
         else:
             # Transcription failed - delete saved audio if any
             if audio_filename:
@@ -1172,6 +1299,8 @@ class TurboWhisper:
         """Clean up and quit application."""
         if self.hotkey_manager:
             self.hotkey_manager.stop()
+        if self.integration_server:
+            self.integration_server.stop()
         self.recorder.cleanup()
         self.app.quit()
 
