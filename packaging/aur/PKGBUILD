@@ -2,7 +2,7 @@
 pkgname=turbo-whisper
 pkgver=1.0.0
 pkgrel=1
-pkgdesc="Voice dictation for Linux with waveform UI - SuperWhisper alternative, speech to text, OpenAI Whisper compatible"
+pkgdesc="Voice dictation and transcription for Linux - SuperWhisper alternative with GUI, speech to text (STT), voice typing, OpenAI Whisper API"
 arch=('any')
 url="https://github.com/knowall-ai/turbo-whisper"
 license=('MIT')

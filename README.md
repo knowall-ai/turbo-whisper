@@ -6,9 +6,9 @@
   </picture>
 </p>
 
-Turbo Whisper is a SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
+Turbo Whisper is a SuperWhisper-like voice dictation and transcription app for Linux, macOS, and Windows. A beautiful GUI for speech to text (STT) with voice typing that works anywhere.
 
-**Voice dictation** | **Speech to text** | **OpenAI Whisper** | **Linux voice typing** | **Transcription**
+**Voice dictation** | **Speech to text (STT)** | **Voice typing** | **Transcription** | **Whisper GUI** | **Hands-free typing**
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
@@ -207,6 +207,36 @@ Edit your config to change the hotkey:
 
 Available modifiers: `ctrl`, `shift`, `alt`, `super`
 
+### Autostart on Login
+
+To start Turbo Whisper automatically when you log in:
+
+**Linux (all distros):**
+```bash
+# Create autostart directory if it doesn't exist
+mkdir -p ~/.config/autostart
+
+# Copy the desktop file (if installed via AUR/PPA)
+cp /usr/share/applications/turbo-whisper.desktop ~/.config/autostart/
+
+# Or create manually
+cat > ~/.config/autostart/turbo-whisper.desktop << 'EOF'
+[Desktop Entry]
+Name=Turbo Whisper
+Exec=turbo-whisper
+Type=Application
+X-GNOME-Autostart-enabled=true
+EOF
+```
+
+**macOS:**
+- Open System Preferences → Users & Groups → Login Items
+- Click + and add Turbo Whisper
+
+**Windows:**
+- Press Win+R, type `shell:startup`, press Enter
+- Create a shortcut to `turbo-whisper` in that folder
+
 ## Self-Hosting Whisper
 
 You can run your own Whisper server for faster, private, and cost-free transcription using [faster-whisper-server](https://github.com/fedirz/faster-whisper-server).
@@ -318,6 +348,10 @@ For more troubleshooting tips, see [docs/TROUBLESHOOTING.adoc](docs/TROUBLESHOOT
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+## Keywords
+
+Voice dictation Linux, speech to text, STT, voice typing, transcription, transcribe audio, OpenAI Whisper GUI, dictation software, speech recognition, voice input, hands-free typing, accessibility, SuperWhisper alternative, faster-whisper, voice to text CLI, terminal dictation.
 
 ## Credits
 

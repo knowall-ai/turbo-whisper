@@ -204,29 +204,47 @@ To add support for additional Ubuntu versions, create separate changelog entries
 
 == SEO Keywords
 
-These keywords should be included in package descriptions to improve discoverability:
+These keywords should be included in package descriptions to improve discoverability.
+
+=== Primary Keywords (High Search Volume)
 
 * voice dictation linux
 * speech to text linux
-* whisper dictation
+* dictation software
+* voice typing
+* transcription
+* stt (speech-to-text abbreviation)
+
+=== Brand/Alternative Keywords
+
 * superwhisper linux alternative
-* voice typing linux ubuntu arch
-* openai whisper gui
-* voice input terminal cli
-* dictation software linux
-* speech recognition desktop
-* voice to text transcription
+* whisper gui
+* openai whisper compatible
+
+=== Feature Keywords
+
+* voice input
+* transcribe audio
 * hands-free typing
-* accessibility voice input
+* accessibility
+* speech recognition desktop
+
+=== Technical Keywords
+
+* whisper api
+* faster-whisper
+* voice to text cli
+* terminal dictation
 
 == Package Description
 
 Use this description for package submissions:
 
 ----
-Turbo Whisper - Voice dictation for Linux with waveform visualization
+Turbo Whisper - Voice dictation and transcription GUI for Linux (STT)
 
-A SuperWhisper-like voice dictation application for Linux. Features include:
+A SuperWhisper-like voice dictation application for Linux. Voice typing made
+easy with speech to text transcription. Features include:
 - Global hotkey to start/stop recording from anywhere
 - Animated waveform visualization (OpenAI/ElevenLabs style)
 - OpenAI Whisper API compatible (works with self-hosted servers)
@@ -235,6 +253,7 @@ A SuperWhisper-like voice dictation application for Linux. Features include:
 - Clipboard support
 
 Perfect for voice input with AI CLI tools like Claude Code, Aider, and terminals.
+Great for accessibility and hands-free typing.
 ----
 
 == Version Management
