@@ -20,11 +20,13 @@ Architecture: all
 Depends: ${python3:Depends},
          ${misc:Depends},
          python3-pyqt6,
+         python3-pyqt6.qtsvg,
          python3-pyaudio,
          python3-numpy,
          python3-httpx,
          python3-pynput,
          python3-xlib,
+         python3-evdev,
          portaudio19-dev,
          xdotool,
          xclip
