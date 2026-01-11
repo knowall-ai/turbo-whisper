@@ -1,3 +1,12 @@
+turbo-whisper (1.0.0-1~ppa3) jammy; urgency=medium
+
+  * Improve package description with SEO keywords
+  * Add multilingual support mention (99 languages)
+  * Add accessibility keywords (RSI, hands-free)
+  * Add autostart support to desktop file
+
+ -- Ben Weeks <ben.weeks@outlook.com>  Sat, 11 Jan 2026 19:30:00 +0000
+
 turbo-whisper (1.0.0-1~ppa2) jammy; urgency=medium
 
   * Fix build: add pybuild-plugin-pyproject to Build-Depends
