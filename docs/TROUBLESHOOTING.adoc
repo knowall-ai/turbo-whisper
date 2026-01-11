@@ -57,6 +57,24 @@
 
 |**Windows: Auto-type not working**
 |Ensure PyAutoGUI is installed. Some apps with elevated privileges may block simulated keyboard input. Try running Turbo Whisper as administrator.
+
+|**PPA: "Repository does not have a Release file"**
+|The PPA may not have packages for your Ubuntu version. Check which series are supported at https://launchpad.net/~bengweeks/+archive/ubuntu/turbo-whisper. Request support for your version or install from source.
+
+|**PPA: "File already exists with different contents"**
+|When uploading a new debian revision for the same upstream version, the orig.tar.gz must be identical. Download the existing one from Launchpad and use `-sd` flag with debuild to create a diff-only upload.
+
+|**PPA: Package not appearing after upload**
+|PPA builds take 5-15 minutes. Check build status at Launchpad. After build completes, wait 1-2 more minutes for repo sync before running `apt update`.
+
+|**AUR: Package description not updating in search**
+|AUR search indexes update periodically. The package page shows the new description immediately, but search results may take hours/days to reflect changes.
+
+|**App not in start menu after install**
+|The desktop file should be at `/usr/share/applications/turbo-whisper.desktop`. Run `update-desktop-database` or log out/in. Check with: `ls -la /usr/share/applications/turbo*`
+
+|**App not starting on login**
+|Copy desktop file to autostart: `cp /usr/share/applications/turbo-whisper.desktop ~/.config/autostart/`. Ensure the file contains `X-GNOME-Autostart-enabled=true`.
 |===
 
 == Diagnostic Commands

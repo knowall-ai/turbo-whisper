@@ -148,8 +148,74 @@ Keep the `/docs/` directory up to date:
 
 - **docs/SOLUTION_DESIGN.adoc** - Technical design decisions, cross-platform compatibility tables
 - **docs/TROUBLESHOOTING.adoc** - Problem/solution table for common issues
+- **docs/PACKAGE.adoc** - AUR and PPA packaging guide
 
 When fixing bugs or adding features:
 1. Update TROUBLESHOOTING.adoc if the fix resolves a common user problem
 2. Update SOLUTION_DESIGN.adoc if the change affects cross-platform behavior
 3. Add new platform-specific workarounds to the compatibility tables
+
+## Packaging (AUR & PPA)
+
+### Package Locations
+
+- **AUR PKGBUILD**: `packaging/aur/PKGBUILD`
+- **Debian packaging**: `packaging/debian/` (control, changelog, rules, etc.)
+- **Desktop file**: `packaging/turbo-whisper.desktop`
+
+### Updating AUR
+
+```bash
+cd packaging/aur
+# Edit PKGBUILD (update pkgver, pkgdesc, etc.)
+makepkg --printsrcinfo > .SRCINFO
+git clone ssh://aur@aur.archlinux.org/turbo-whisper.git /tmp/aur-turbo-whisper
+cp PKGBUILD .SRCINFO /tmp/aur-turbo-whisper/
+cd /tmp/aur-turbo-whisper
+git add -A && git commit -m "Update to vX.Y.Z" && git push
+```
+
+### Updating PPA
+
+**Critical rules:**
+1. **Same orig.tar.gz**: When uploading a new debian revision (e.g., ppa2 → ppa3) for the same upstream version, the orig.tar.gz must be identical. Download the existing one from Launchpad.
+2. **Different Ubuntu series = different versions**: Use separate version numbers for each Ubuntu series (e.g., ppa3 for jammy, ppa4 for questing).
+3. **Build for each series separately**: PPAs don't automatically build for all Ubuntu versions.
+
+```bash
+# Download existing orig.tar.gz from Launchpad (for same upstream version)
+wget https://launchpad.net/~bengweeks/+archive/ubuntu/turbo-whisper/+sourcefiles/turbo-whisper/1.0.0-1~ppa3/turbo-whisper_1.0.0.orig.tar.gz
+
+# Extract and prepare
+tar xzf turbo-whisper_1.0.0.orig.tar.gz
+mv turbo_whisper-* turbo-whisper-1.0.0
+cp -r /path/to/packaging/debian turbo-whisper-1.0.0/
+
+# Update changelog for target series (jammy, questing, etc.)
+# Edit debian/changelog - change series name and version
+
+# Build source package (-sd = diff-only, reuse existing orig.tar.gz)
+cd turbo-whisper-1.0.0
+debuild -S -sd -d
+
+# Sign and upload
+cd ..
+debsign -k YOUR_GPG_KEY_ID *_source.changes
+dput ppa:bengweeks/turbo-whisper *_source.changes
+```
+
+### SEO Keywords
+
+Include these in package descriptions for discoverability:
+- Primary: voice dictation, speech to text, STT, voice typing, transcription
+- Brand: SuperWhisper alternative, whisper gui, open source, free
+- Accessibility: RSI, carpal tunnel, hands-free, accessibility
+- Technical: multilingual, real-time, OpenAI Whisper API
+
+### Autostart
+
+The desktop file includes `X-GNOME-Autostart-enabled=true`. Users enable autostart by copying to `~/.config/autostart/`:
+
+```bash
+cp /usr/share/applications/turbo-whisper.desktop ~/.config/autostart/
+```
