@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Turbo Whisper
+Comment=Voice dictation with waveform visualization - speech to text using OpenAI Whisper
+GenericName=Voice Dictation
+Exec=turbo-whisper
+Icon=audio-input-microphone
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Utility;Accessibility;
+Keywords=voice;dictation;speech;text;whisper;transcription;microphone;recording;typing;
+StartupNotify=true
+StartupWMClass=turbo-whisper

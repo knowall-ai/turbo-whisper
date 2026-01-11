@@ -1,0 +1,48 @@
+Source: turbo-whisper
+Section: sound
+Priority: optional
+Maintainer: Ben Weeks <ben.weeks@outlook.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               python3-all,
+               python3-setuptools,
+               python3-hatchling,
+               python3-build
+Standards-Version: 4.6.0
+Homepage: https://github.com/knowall-ai/turbo-whisper
+Vcs-Git: https://github.com/knowall-ai/turbo-whisper.git
+Vcs-Browser: https://github.com/knowall-ai/turbo-whisper
+Rules-Requires-Root: no
+
+Package: turbo-whisper
+Architecture: all
+Depends: ${python3:Depends},
+         ${misc:Depends},
+         python3-pyqt6,
+         python3-pyaudio,
+         python3-numpy,
+         python3-httpx,
+         python3-pynput,
+         python3-xlib,
+         portaudio19-dev,
+         xdotool,
+         xclip
+Suggests: wtype, wl-clipboard
+Description: Voice dictation for Linux with waveform visualization
+ Turbo Whisper is a SuperWhisper-like voice dictation application for Linux.
+ It provides speech to text transcription using OpenAI Whisper API or
+ self-hosted faster-whisper-server.
+ .
+ Features:
+  - Global hotkey to start/stop recording from anywhere
+  - Animated waveform visualization (OpenAI/ElevenLabs style orb)
+  - OpenAI Whisper API compatible (works with self-hosted servers)
+  - Auto-types transcribed text into focused window
+  - System tray integration
+  - Clipboard support
+ .
+ Perfect for voice input with AI CLI tools like Claude Code, Aider,
+ GitHub Copilot CLI, and terminal applications.
+ .
+ Keywords: voice dictation, speech to text, whisper, transcription,
+ voice typing, dictation software, speech recognition, accessibility

@@ -8,9 +8,13 @@
 
 Turbo Whisper is a SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
 
+**Voice dictation** | **Speech to text** | **OpenAI Whisper** | **Linux voice typing** | **Transcription**
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)
+![AUR](https://img.shields.io/aur/version/turbo-whisper)
+![PPA](https://img.shields.io/badge/PPA-bengweeks%2Fturbo--whisper-orange)
 
 <img width="1554" height="678" alt="image" src="https://github.com/user-attachments/assets/1f2e0447-2152-48d6-99c3-8d49d3053ac8" />
 
@@ -38,7 +42,28 @@ Simply press the hotkey, speak your prompt, and the transcription is typed direc
 
 ## Installation
 
-### Linux (Ubuntu/Debian)
+### Ubuntu/Debian (PPA) - Recommended
+
+```bash
+sudo add-apt-repository ppa:bengweeks/turbo-whisper
+sudo apt update
+sudo apt install turbo-whisper
+```
+
+### Arch Linux (AUR) - Recommended
+
+```bash
+# Using yay
+yay -S turbo-whisper
+
+# Using paru
+paru -S turbo-whisper
+```
+
+### From Source
+
+<details>
+<summary>Ubuntu/Debian</summary>
 
 ```bash
 # Install system dependencies
@@ -52,7 +77,10 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-### Linux (Fedora)
+</details>
+
+<details>
+<summary>Fedora</summary>
 
 ```bash
 sudo dnf install python3-pyaudio portaudio-devel xdotool xclip
@@ -63,7 +91,10 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-### Linux (Arch)
+</details>
+
+<details>
+<summary>Arch Linux (manual)</summary>
 
 ```bash
 sudo pacman -S python-pyaudio portaudio xdotool xclip
@@ -73,6 +104,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
+
+</details>
 
 ### macOS
 

@@ -1,0 +1,235 @@
+= Turbo Whisper Packaging Guide
+:toc:
+:toc-placement!:
+
+This document describes how to package and distribute Turbo Whisper via Linux package managers.
+
+toc::[]
+
+== Overview
+
+Turbo Whisper is distributed through multiple channels:
+
+* **AUR** - Arch User Repository (`yay -S turbo-whisper`) - **Live**
+* **PPA** - Ubuntu Personal Package Archive (`sudo apt install turbo-whisper`) - **Live**
+* **PyPI** - Python Package Index (`pip install turbo-whisper`) - Planned
+
+== Current Status
+
+[cols="1,2,2"]
+|===
+| Channel | Status | URL
+
+| AUR
+| Live (v1.0.0)
+| https://aur.archlinux.org/packages/turbo-whisper
+
+| PPA
+| Live (v1.0.0)
+| https://launchpad.net/~bengweeks/+archive/ubuntu/turbo-whisper
+
+| PyPI
+| Planned
+| -
+|===
+
+== AUR (Arch User Repository)
+
+=== What is AUR?
+
+The Arch User Repository (AUR) is a community-driven repository for Arch Linux users. It contains package descriptions (PKGBUILDs) that allow users to compile packages from source.
+
+=== Package Details
+
+[cols="1,3"]
+|===
+| Package Name | `turbo-whisper`
+| AUR URL | https://aur.archlinux.org/packages/turbo-whisper
+| Maintainer | Ben Weeks <ben.weeks@outlook.com>
+| License | MIT
+|===
+
+=== PKGBUILD Location
+
+The PKGBUILD file is maintained in: `packaging/aur/PKGBUILD`
+
+=== Installation for Users
+
+[source,bash]
+----
+# Using yay (recommended)
+yay -S turbo-whisper
+
+# Using paru
+paru -S turbo-whisper
+
+# Manual installation
+git clone https://aur.archlinux.org/turbo-whisper.git
+cd turbo-whisper
+makepkg -si
+----
+
+=== Updating the AUR Package
+
+1. Update version in `packaging/aur/PKGBUILD`
+2. Update checksums: `updpkgsums`
+3. Generate .SRCINFO: `makepkg --printsrcinfo > .SRCINFO`
+4. Clone AUR repo: `git clone ssh://aur@aur.archlinux.org/turbo-whisper.git`
+5. Copy PKGBUILD and .SRCINFO to AUR repo
+6. Commit and push
+
+[source,bash]
+----
+# Full update workflow
+cd packaging/aur
+updpkgsums
+makepkg --printsrcinfo > .SRCINFO
+
+# Clone AUR repo (first time)
+git clone ssh://aur@aur.archlinux.org/turbo-whisper.git ~/aur-turbo-whisper
+
+# Or pull latest
+cd ~/aur-turbo-whisper && git pull
+
+# Copy files
+cp PKGBUILD .SRCINFO ~/aur-turbo-whisper/
+
+# Commit and push
+cd ~/aur-turbo-whisper
+git add PKGBUILD .SRCINFO
+git commit -m "Update to version X.Y.Z"
+git push
+----
+
+== PPA (Personal Package Archive)
+
+=== What is PPA?
+
+A Personal Package Archive (PPA) allows Ubuntu users to install packages via `apt`. Packages are built on Launchpad's build servers and signed with GPG.
+
+=== Package Details
+
+[cols="1,3"]
+|===
+| PPA Name | `ppa:bengweeks/turbo-whisper`
+| Launchpad URL | https://launchpad.net/~bengweeks/+archive/ubuntu/turbo-whisper
+| Maintainer | Ben Weeks <ben.weeks@outlook.com>
+| License | MIT
+|===
+
+=== Debian Packaging Location
+
+Debian packaging files are in: `packaging/debian/`
+
+=== Installation for Users
+
+[source,bash]
+----
+sudo add-apt-repository ppa:bengweeks/turbo-whisper
+sudo apt update
+sudo apt install turbo-whisper
+----
+
+=== Building the Debian Package
+
+==== Prerequisites
+
+[source,bash]
+----
+sudo apt install devscripts debhelper dh-python python3-all python3-setuptools
+----
+
+==== Build Process
+
+[source,bash]
+----
+# Create source tarball
+python -m build --sdist
+
+# Extract and prepare
+cd dist
+tar xzf turbo-whisper-*.tar.gz
+cd turbo-whisper-*
+
+# Copy debian directory
+cp -r ../../packaging/debian .
+
+# Update changelog (for new version)
+dch -i "New upstream release"
+
+# Build source package
+debuild -S -sa
+
+# Upload to PPA
+dput ppa:bengweeks/turbo-whisper ../turbo-whisper_*_source.changes
+----
+
+=== GPG Key Setup
+
+You need a GPG key registered with Launchpad:
+
+[source,bash]
+----
+# Generate key (if not exists)
+gpg --full-generate-key
+
+# Export and upload to keyserver
+gpg --keyserver keyserver.ubuntu.com --send-keys YOUR_KEY_ID
+
+# Add key to Launchpad account via web interface
+----
+
+== Supported Ubuntu Versions
+
+The PPA currently builds for:
+
+* Ubuntu 22.04 LTS (Jammy)
+
+To add support for additional Ubuntu versions, create separate changelog entries for each distribution and upload separately.
+
+== SEO Keywords
+
+These keywords should be included in package descriptions to improve discoverability:
+
+* voice dictation linux
+* speech to text linux
+* whisper dictation
+* superwhisper linux alternative
+* voice typing linux ubuntu arch
+* openai whisper gui
+* voice input terminal cli
+* dictation software linux
+* speech recognition desktop
+* voice to text transcription
+* hands-free typing
+* accessibility voice input
+
+== Package Description
+
+Use this description for package submissions:
+
+----
+Turbo Whisper - Voice dictation for Linux with waveform visualization
+
+A SuperWhisper-like voice dictation application for Linux. Features include:
+- Global hotkey to start/stop recording from anywhere
+- Animated waveform visualization (OpenAI/ElevenLabs style)
+- OpenAI Whisper API compatible (works with self-hosted servers)
+- Auto-types transcribed text into focused window
+- System tray integration
+- Clipboard support
+
+Perfect for voice input with AI CLI tools like Claude Code, Aider, and terminals.
+----
+
+== Version Management
+
+When releasing a new version:
+
+1. Update version in `pyproject.toml`
+2. Update `packaging/aur/PKGBUILD` (pkgver)
+3. Update `packaging/debian/changelog`
+4. Create git tag: `git tag -a v1.0.0 -m "Release v1.0.0"`
+5. Push tag: `git push origin v1.0.0`
+6. Update AUR package
+7. Upload to PPA
