@@ -1,4 +1,10 @@
-turbo-whisper (1.0.0-1) jammy; urgency=medium
+turbo-whisper (1.0.0-1~ppa2) jammy; urgency=medium
+
+  * Fix build: add pybuild-plugin-pyproject to Build-Depends
+
+ -- Ben Weeks <ben.weeks@outlook.com>  Sat, 11 Jan 2026 18:30:00 +0000
+
+turbo-whisper (1.0.0-1~ppa1) jammy; urgency=medium
 
   * Initial release
   * Voice dictation with waveform visualization
@@ -8,4 +14,4 @@ turbo-whisper (1.0.0-1) jammy; urgency=medium
   * System tray integration
   * Clip history with playback
 
- -- Ben Weeks <ben.weeks@outlook.com>  Sat, 11 Jan 2025 12:00:00 +0000
+ -- Ben Weeks <ben.weeks@outlook.com>  Sat, 11 Jan 2026 18:00:00 +0000
