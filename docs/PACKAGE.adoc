@@ -8,11 +8,10 @@ toc::[]
 
 == Overview
 
-Turbo Whisper is distributed through multiple channels:
+Turbo Whisper is distributed through Linux package managers:
 
-* **AUR** - Arch User Repository (`yay -S turbo-whisper`) - **Live**
-* **PPA** - Ubuntu Personal Package Archive (`sudo apt install turbo-whisper`) - **Live**
-* **PyPI** - Python Package Index (`pip install turbo-whisper`) - Planned
+* **AUR** - Arch User Repository (`yay -S turbo-whisper`)
+* **PPA** - Ubuntu Personal Package Archive (`sudo apt install turbo-whisper`)
 
 == Current Status
 
@@ -27,11 +26,27 @@ Turbo Whisper is distributed through multiple channels:
 | PPA
 | Live (v1.0.0)
 | https://launchpad.net/~bengweeks/+archive/ubuntu/turbo-whisper
-
-| PyPI
-| Planned
-| -
 |===
+
+== Why Not PyPI?
+
+PyPI (Python Package Index) is not used for this project because:
+
+1. **PyPI is designed for libraries and developer tools**, not desktop GUI applications
+2. **System dependencies cannot be installed via pip** - Turbo Whisper requires `portaudio`, `xdotool`, and `xclip` which must be installed separately
+3. **Poor user experience** - Users would need to manually install system deps before `pip install` works
+4. **Discovery** - Users searching for "voice dictation linux" look in distro repos, not PyPI
+
+For desktop applications like Turbo Whisper, native package managers (AUR, PPA) provide a better experience by handling all dependencies automatically.
+
+=== Future Considerations
+
+**Flatpak** (via Flathub) may be added in the future as it:
+
+* Works across all Linux distributions
+* Bundles dependencies (no system dep issues)
+* Provides sandboxing and automatic updates
+* Is where users look for desktop applications
 
 == AUR (Arch User Repository)
 
