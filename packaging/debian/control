@@ -30,22 +30,24 @@ Depends: ${python3:Depends},
          xclip
 Suggests: wtype, wl-clipboard
 Description: Voice dictation and transcription GUI for Linux (STT)
- Turbo Whisper is a SuperWhisper-like voice dictation application for Linux.
- It provides speech to text (STT) transcription using OpenAI Whisper API or
- self-hosted faster-whisper-server. Voice typing made easy with a beautiful GUI.
+ Turbo Whisper is a free, open source voice dictation application for Linux.
+ A SuperWhisper alternative that provides real-time speech to text (STT)
+ transcription using OpenAI Whisper API or self-hosted faster-whisper-server.
+ Supports 99 languages. Voice typing made easy with a beautiful GUI.
  .
  Features:
   - Global hotkey to start/stop recording from anywhere
   - Animated waveform visualization (OpenAI/ElevenLabs style orb)
-  - OpenAI Whisper API compatible (works with self-hosted servers)
+  - OpenAI Whisper API compatible (works with self-hosted/local servers)
   - Auto-types transcribed text into focused window
-  - System tray integration
-  - Clipboard support
+  - Multilingual support (99 languages via Whisper)
+  - System tray integration with autostart support
  .
- Perfect for voice input with AI CLI tools like Claude Code, Aider,
- GitHub Copilot CLI, and terminal applications. Great for accessibility
- and hands-free typing.
+ Perfect for voice input with AI CLI tools like Claude Code, Aider, and
+ terminal applications. Great for accessibility, RSI, carpal tunnel, and
+ hands-free typing.
  .
  Keywords: voice dictation, speech to text, stt, whisper gui, transcription,
  voice typing, voice input, dictation software, speech recognition, accessibility,
- transcribe audio, hands-free, superwhisper alternative
+ rsi, carpal tunnel, hands-free, open source, free, multilingual, real-time,
+ superwhisper alternative, nerd-dictation alternative, local, offline

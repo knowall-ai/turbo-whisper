@@ -6,9 +6,9 @@
   </picture>
 </p>
 
-Turbo Whisper is a SuperWhisper-like voice dictation and transcription app for Linux, macOS, and Windows. A beautiful GUI for speech to text (STT) with voice typing that works anywhere.
+Turbo Whisper is a **free, open source** voice dictation and transcription app for Linux, macOS, and Windows. A SuperWhisper alternative with a beautiful GUI for real-time speech to text (STT). Supports **99 languages** via OpenAI Whisper. Perfect for accessibility, RSI, and hands-free typing.
 
-**Voice dictation** | **Speech to text (STT)** | **Voice typing** | **Transcription** | **Whisper GUI** | **Hands-free typing**
+**Voice dictation** | **Speech to text (STT)** | **Voice typing** | **Transcription** | **Open source** | **Multilingual** | **Hands-free**
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
@@ -23,10 +23,12 @@ Turbo Whisper is a SuperWhisper-like voice dictation and transcription app for L
 - **Global hotkey** (Ctrl+Shift+Space) to start/stop recording from anywhere
 - **Waveform visualization** - see your audio levels in real-time with an animated orb
 - **OpenAI API compatible** - works with OpenAI Whisper API or self-hosted faster-whisper-server
+- **Multilingual** - supports 99 languages via Whisper
 - **Auto-type** - transcribed text is typed directly into the focused window
 - **Clipboard support** - text is also copied to clipboard
-- **System tray** - runs quietly in the background
+- **System tray** - runs quietly in the background with autostart support
 - **Cross-platform** - Linux, macOS, and Windows support
+- **Accessibility** - great for RSI, carpal tunnel, or anyone preferring hands-free input
 
 ## Perfect for AI CLI Tools
 
@@ -351,7 +353,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Keywords
 
-Voice dictation Linux, speech to text, STT, voice typing, transcription, transcribe audio, OpenAI Whisper GUI, dictation software, speech recognition, voice input, hands-free typing, accessibility, SuperWhisper alternative, faster-whisper, voice to text CLI, terminal dictation.
+Voice dictation Linux, speech to text, STT, voice typing, transcription, transcribe audio, OpenAI Whisper GUI, dictation software, speech recognition, voice input, hands-free typing, accessibility, SuperWhisper alternative, faster-whisper, voice to text CLI, terminal dictation, free open source, multilingual, 99 languages, RSI, carpal tunnel, real-time transcription, local whisper, offline speech recognition, nerd-dictation alternative, voice coding, voice input terminal, how to dictate on Linux, best voice dictation Linux, Ubuntu voice typing, Arch Linux dictation.
 
 ## Credits
 
