@@ -855,7 +855,7 @@ class RecordingWindow(QWidget):
         """Copy a history item to clipboard."""
         self._copy_to_clipboard(text)
         # Show brief status update
-        self._show_status("Copied!")
+        self.set_status("Copied!")
 
     def _play_audio(self, filename: str, button: QPushButton) -> None:
         """Play or stop an audio recording."""
@@ -872,7 +872,7 @@ class RecordingWindow(QWidget):
 
         audio_path = self.config.get_recordings_dir() / filename
         if not audio_path.exists():
-            self._show_status("Audio file not found")
+            self.set_status("Audio file not found")
             return
 
         # Create or reuse media player
@@ -1031,7 +1031,15 @@ class TurboWhisper:
         menu.addAction(quit_action)
 
         self.tray.setContextMenu(menu)
+        self.tray.activated.connect(self._on_tray_activated)
         self.tray.show()
+
+    def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        """Handle tray icon clicks."""
+        # Trigger = left click, DoubleClick = double click
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger,
+                      QSystemTrayIcon.ActivationReason.DoubleClick):
+            self._show_window()
 
     def _update_icons(self, recording: bool) -> None:
         """Update all icons based on recording state."""
