@@ -1,3 +1,11 @@
+turbo-whisper (1.0.1-1~ppa1) jammy; urgency=medium
+
+  * Add missing python3-pyqt6.qtsvg dependency
+  * Fix copy button crash in history panel
+  * Add left-click on tray icon to show window
+
+ -- Ben Weeks <ben.weeks@outlook.com>  Sun, 12 Jan 2026 14:30:00 +0000
+
 turbo-whisper (1.0.0-1~ppa3) jammy; urgency=medium
 
   * Improve package description with SEO keywords
