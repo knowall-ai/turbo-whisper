@@ -1,3 +1,10 @@
+turbo-whisper (1.0.2-1~ppa1) jammy; urgency=medium
+
+  * Remove debug output (audio levels, integration server messages)
+  * Cleaner console output in production
+
+ -- Ben Weeks <ben.weeks@outlook.com>  Sun, 12 Jan 2026 16:30:00 +0000
+
 turbo-whisper (1.0.1-1~ppa1) jammy; urgency=medium
 
   * Add missing python3-pyqt6.qtsvg dependency

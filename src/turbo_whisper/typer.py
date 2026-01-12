@@ -31,7 +31,6 @@ class Typer:
             cap = {ecodes.EV_KEY: list(range(1, 128))}
             self._uinput = UInput(cap, name="turbo-whisper-keyboard")
             self._evdev_available = True
-            print("evdev UInput keyboard initialized")
         except PermissionError:
             print("evdev: Permission denied for /dev/uinput")
             print("Fix with: sudo usermod -aG input $USER (then log out/in)")

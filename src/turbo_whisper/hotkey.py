@@ -339,5 +339,4 @@ def create_hotkey_manager(
             print(f"Portal hotkeys unavailable: {e}")
             return None
     else:
-        print("Using pynput for global hotkeys (X11/Windows/macOS)")
         return HotkeyManager(hotkey_combo, callback)

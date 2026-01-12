@@ -177,10 +177,13 @@ git add -A && git commit -m "Update to vX.Y.Z" && git push
 
 ### Updating PPA
 
+**PPA username is `bengweeks`** (not `benweeks`). Double-check before uploading!
+
 **Critical rules:**
 1. **Same orig.tar.gz**: When uploading a new debian revision (e.g., ppa2 → ppa3) for the same upstream version, the orig.tar.gz must be identical. Download the existing one from Launchpad.
-2. **Different Ubuntu series = different versions**: Use separate version numbers for each Ubuntu series (e.g., ppa3 for jammy, ppa4 for questing).
+2. **Different Ubuntu series = different versions**: Use separate version numbers for each Ubuntu series (e.g., ppa1 for jammy, ppa2 for questing).
 3. **Build for each series separately**: PPAs don't automatically build for all Ubuntu versions.
+4. **New upstream version = new GitHub tag**: When bumping version (e.g., 1.0.0 → 1.0.1), create a new git tag and push before building PPA packages.
 
 ```bash
 # Download existing orig.tar.gz from Launchpad (for same upstream version)

@@ -993,9 +993,7 @@ class TurboWhisper:
             from .integration_server import IntegrationServer
 
             self.integration_server = IntegrationServer(self.config.claude_integration_port)
-            if self.integration_server.start():
-                print(f"Integration server started on port {self.config.claude_integration_port}")
-            else:
+            if not self.integration_server.start():
                 self.integration_server = None
 
     def _setup_tray(self) -> None:
@@ -1178,13 +1176,6 @@ class TurboWhisper:
         """Poll waveform data from recorder thread (called from main thread timer)."""
         if self._pending_waveform_data is not None:
             level, waveform_buffer = self._pending_waveform_data
-            # Debug: print level occasionally
-            if hasattr(self, "_poll_count"):
-                self._poll_count += 1
-            else:
-                self._poll_count = 0
-            if self._poll_count % 30 == 0:  # Every ~1 second
-                print(f"Audio level: {level:.4f}")
             self.window.waveform.update_waveform(level, waveform_buffer)
             # Update mic level meter (scale 0-1 to 0-100, cap at 100)
             self.window.update_mic_level(level)
