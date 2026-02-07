@@ -41,6 +41,11 @@ class Config:
     #          Alt+Space on Linux/macOS
     hotkey: list[str] = field(default_factory=_default_hotkey)
 
+    # Dictation interaction mode
+    # False: press once to start, press again to stop
+    # True: hold keys to record, release to stop
+    push_to_talk: bool = False
+
     # Audio settings
     sample_rate: int = 16000
     channels: int = 1

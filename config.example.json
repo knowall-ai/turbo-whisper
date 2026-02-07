@@ -2,6 +2,7 @@
   "api_url": "https://api.openai.com/v1/audio/transcriptions",
   "api_key": "sk-your-api-key-here",
   "hotkey": ["alt", "space"],
+  "push_to_talk": false,
   "sample_rate": 16000,
   "channels": 1,
   "chunk_size": 1024,

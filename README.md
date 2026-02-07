@@ -194,6 +194,7 @@ Create `~/.config/turbo-whisper/config.json` (Linux/macOS) or `%APPDATA%\turbo-w
   "api_url": "https://api.openai.com/v1/audio/transcriptions",
   "api_key": "sk-your-api-key",
   "hotkey": ["ctrl", "shift", "space"],
+  "push_to_talk": false,
   "language": "en",
   "auto_paste": true,
   "copy_to_clipboard": true,
@@ -233,16 +234,16 @@ source .venv/bin/activate  # Linux/macOS
 turbo-whisper
 ```
 
-1. Press **Ctrl+Shift+Space** to start recording
+1. Press your configured hotkey to start recording
 2. Speak your text
-3. Press **Ctrl+Shift+Space** again to stop and transcribe
+3. Press the hotkey again to stop and transcribe
 4. Text is automatically typed into the focused window (wherever your cursor is)
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| Ctrl+Shift+Space | Start/stop recording (configurable) |
+| Configurable hotkey | Start/stop recording |
 | Esc | Cancel recording (when window is focused) |
 
 ### Custom Hotkey
@@ -250,11 +251,21 @@ turbo-whisper
 Edit your config to change the hotkey:
 ```json
 {
-  "hotkey": ["ctrl", "alt", "w"]
+  "hotkey": ["ctrl", "alt", "w"],
+  "push_to_talk": false
 }
 ```
 
 Available modifiers: `ctrl`, `shift`, `alt`, `super`
+
+Enable hold-to-talk (press and hold to record, release to stop):
+
+```json
+{
+  "hotkey": ["alt"],
+  "push_to_talk": true
+}
+```
 
 ### Autostart on Login
 
