@@ -41,14 +41,20 @@ def _format_hotkey_for_portal(hotkey_combo: list[str]) -> str:
 class PortalHotkeyManager:
     """Wayland hotkey manager using xdg-desktop-portal GlobalShortcuts."""
 
-    def __init__(self, hotkey_combo: list[str], callback: Callable[[], None]):
+    def __init__(
+        self,
+        hotkey_combo: list[str],
+        on_activate: Callable[[], None],
+        on_deactivate: Callable[[], None] | None = None,
+    ):
         """Initialize portal hotkey manager."""
         # Import here to make dependencies optional
         import dbus
         from dbus.mainloop.glib import DBusGMainLoop
         from gi.repository import GLib
 
-        self.callback = callback
+        self.on_activate = on_activate
+        self.on_deactivate = on_deactivate
         self.hotkey_combo = hotkey_combo
         self.hotkey_str = _format_hotkey_for_portal(hotkey_combo)
         self._running = False
@@ -69,7 +75,7 @@ class PortalHotkeyManager:
     def _on_activated(self, session_handle, shortcut_id, timestamp, options):
         """Handle shortcut activation."""
         if shortcut_id == "turbo-whisper-toggle":
-            self.callback()
+            self.on_activate()
 
     def _on_session_created(self, response, results):
         """Handle session creation response."""
@@ -172,24 +178,32 @@ class PortalHotkeyManager:
 class HotkeyManager:
     """Manages global hotkey registration using pynput (X11/Windows/macOS)."""
 
-    def __init__(self, hotkey_combo: list[str], callback: Callable[[], None]):
+    def __init__(
+        self,
+        hotkey_combo: list[str],
+        on_activate: Callable[[], None],
+        on_deactivate: Callable[[], None] | None = None,
+    ):
         """
         Initialize hotkey manager.
 
         Args:
             hotkey_combo: List of key names, e.g., ["alt", "space"]
-            callback: Function to call when hotkey is pressed
+            on_activate: Function to call when hotkey combo is pressed
+            on_deactivate: Function to call when hotkey combo is released
         """
         # Import here to make dependency optional (only needed on non-Wayland)
         from pynput import keyboard
 
         self._keyboard = keyboard
 
-        self.callback = callback
+        self.on_activate = on_activate
+        self.on_deactivate = on_deactivate
         self.hotkey_combo = self._parse_hotkey(hotkey_combo)
         self.hotkey_chars = self._get_char_keys(hotkey_combo)
         self.current_keys = set()
         self.current_chars = set()
+        self._combo_active = False
         self.listener = None
         self._running = False
         self._last_trigger = 0
@@ -270,13 +284,10 @@ class HotkeyManager:
         if special_keys_match and char_keys_match:
             # Debounce to prevent double triggers
             now = time.time() * 1000
-            if now - self._last_trigger > self._debounce_ms:
+            if (not self._combo_active) and now - self._last_trigger > self._debounce_ms:
                 self._last_trigger = now
-                # Clear key state to ensure next press re-triggers
-                # (release events may be lost when window is shown)
-                self.current_keys.clear()
-                self.current_chars.clear()
-                self.callback()
+                self._combo_active = True
+                self.on_activate()
 
     def _on_release(self, key) -> None:
         """Handle key release event."""
@@ -294,6 +305,14 @@ class HotkeyManager:
             self.current_keys.discard(kb.Key.ctrl)
         if key in (kb.Key.shift_l, kb.Key.shift_r):
             self.current_keys.discard(kb.Key.shift)
+
+        special_keys_match = self.hotkey_combo.issubset(self.current_keys)
+        char_keys_match = self.hotkey_chars.issubset(self.current_chars)
+        combo_still_active = special_keys_match and char_keys_match
+        if self._combo_active and (not combo_still_active):
+            self._combo_active = False
+            if self.on_deactivate:
+                self.on_deactivate()
 
     def start(self) -> None:
         """Start listening for hotkeys."""
@@ -316,7 +335,9 @@ class HotkeyManager:
 
 
 def create_hotkey_manager(
-    hotkey_combo: list[str], callback: Callable[[], None]
+    hotkey_combo: list[str],
+    on_activate: Callable[[], None],
+    on_deactivate: Callable[[], None] | None = None,
 ) -> HotkeyManager | PortalHotkeyManager | None:
     """
     Create appropriate hotkey manager for the current platform.
@@ -328,8 +349,10 @@ def create_hotkey_manager(
     """
     if is_wayland():
         try:
-            manager = PortalHotkeyManager(hotkey_combo, callback)
+            manager = PortalHotkeyManager(hotkey_combo, on_activate, on_deactivate)
             print("Using xdg-desktop-portal for global hotkeys (Wayland)")
+            if on_deactivate:
+                print("Portal backend does not support release events; using press-only behavior")
             return manager
         except ImportError as e:
             print(f"Portal hotkeys unavailable (missing dependencies): {e}")
@@ -339,4 +362,4 @@ def create_hotkey_manager(
             print(f"Portal hotkeys unavailable: {e}")
             return None
     else:
-        return HotkeyManager(hotkey_combo, callback)
+        return HotkeyManager(hotkey_combo, on_activate, on_deactivate)
