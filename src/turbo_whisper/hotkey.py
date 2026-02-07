@@ -1,6 +1,8 @@
 """Global hotkey handling with platform-specific backends."""
 
 import os
+import platform
+import select
 import threading
 import time
 from typing import Callable
@@ -315,9 +317,160 @@ class HotkeyManager:
             self.listener = None
 
 
+class EvdevHotkeyManager:
+    """Linux hotkey manager using evdev (works on Wayland)."""
+
+    def __init__(self, hotkey_combo: list[str], callback: Callable[[], None]):
+        from evdev import ecodes
+
+        self.callback = callback
+        self._ecodes = ecodes
+        self._required_keys = self._parse_hotkey(hotkey_combo)
+        if not self._required_keys:
+            raise ValueError(f"No valid evdev keys parsed from: {hotkey_combo}")
+
+        self._running = False
+        self._thread = None
+        self._devices = []
+        self._pressed_keys = set()
+        self._combo_active = False
+
+    def _parse_hotkey(self, combo: list[str]) -> set[int]:
+        ec = self._ecodes
+        key_map = {
+            "alt": ec.KEY_LEFTALT,
+            "alt_l": ec.KEY_LEFTALT,
+            "alt_r": ec.KEY_RIGHTALT,
+            "ctrl": ec.KEY_LEFTCTRL,
+            "ctrl_l": ec.KEY_LEFTCTRL,
+            "ctrl_r": ec.KEY_RIGHTCTRL,
+            "shift": ec.KEY_LEFTSHIFT,
+            "shift_l": ec.KEY_LEFTSHIFT,
+            "shift_r": ec.KEY_RIGHTSHIFT,
+            "super": ec.KEY_LEFTMETA,
+            "cmd": ec.KEY_LEFTMETA,
+            "space": ec.KEY_SPACE,
+            "tab": ec.KEY_TAB,
+            "enter": ec.KEY_ENTER,
+            "esc": ec.KEY_ESC,
+            "backspace": ec.KEY_BACKSPACE,
+            "f1": ec.KEY_F1,
+            "f2": ec.KEY_F2,
+            "f3": ec.KEY_F3,
+            "f4": ec.KEY_F4,
+            "f5": ec.KEY_F5,
+            "f6": ec.KEY_F6,
+            "f7": ec.KEY_F7,
+            "f8": ec.KEY_F8,
+            "f9": ec.KEY_F9,
+            "f10": ec.KEY_F10,
+            "f11": ec.KEY_F11,
+            "f12": ec.KEY_F12,
+        }
+        parsed: set[int] = set()
+        for key_name in combo:
+            mapped = key_map.get(key_name.lower())
+            if mapped is not None:
+                parsed.add(mapped)
+            else:
+                print(f"Warning: Unknown evdev key '{key_name}'")
+        return parsed
+
+    def _is_keyboard(self, device) -> bool:
+        ec = self._ecodes
+        try:
+            caps = device.capabilities()
+        except OSError:
+            return False
+        keys = caps.get(ec.EV_KEY, [])
+        if not keys:
+            return False
+        keyboard_markers = {ec.KEY_A, ec.KEY_Z, ec.KEY_SPACE, ec.KEY_ENTER, ec.KEY_F8}
+        return any(k in keys for k in keyboard_markers)
+
+    def _open_devices(self) -> None:
+        from evdev import InputDevice, list_devices
+
+        devices = []
+        for path in list_devices():
+            try:
+                device = InputDevice(path)
+                if self._is_keyboard(device):
+                    devices.append(device)
+                else:
+                    device.close()
+            except PermissionError:
+                raise
+            except Exception:
+                continue
+
+        if not devices:
+            raise RuntimeError("No readable keyboard input devices found for evdev hotkeys")
+        self._devices = devices
+
+    def _release_devices(self) -> None:
+        for device in self._devices:
+            try:
+                device.close()
+            except Exception:
+                pass
+        self._devices = []
+
+    def _run(self) -> None:
+        ec = self._ecodes
+        try:
+            self._open_devices()
+        except PermissionError:
+            print("evdev hotkey: permission denied reading /dev/input/event*")
+            print("Fix with: sudo usermod -aG input $USER (then log out/in)")
+            self._running = False
+            return
+        except Exception as e:
+            print(f"evdev hotkey unavailable: {e}")
+            self._running = False
+            return
+
+        fd_map = {dev.fd: dev for dev in self._devices}
+        while self._running:
+            rlist, _, _ = select.select(list(fd_map.keys()), [], [], 0.2)
+            for fd in rlist:
+                device = fd_map[fd]
+                for event in device.read():
+                    if event.type != ec.EV_KEY:
+                        continue
+                    keycode = event.code
+                    if event.value in (1, 2):
+                        self._pressed_keys.add(keycode)
+                    elif event.value == 0:
+                        self._pressed_keys.discard(keycode)
+
+                    combo_now = self._required_keys.issubset(self._pressed_keys)
+                    if combo_now and not self._combo_active:
+                        self._combo_active = True
+                        self.callback()
+                    elif (not combo_now) and self._combo_active:
+                        self._combo_active = False
+
+        self._release_devices()
+
+    def start(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._running = False
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=0.4)
+        self._thread = None
+        self._release_devices()
+
+
 def create_hotkey_manager(
     hotkey_combo: list[str], callback: Callable[[], None]
-) -> HotkeyManager | PortalHotkeyManager | None:
+) -> HotkeyManager | PortalHotkeyManager | EvdevHotkeyManager | None:
     """
     Create appropriate hotkey manager for the current platform.
 
@@ -326,6 +479,16 @@ def create_hotkey_manager(
         PortalHotkeyManager for Wayland
         None if no backend is available
     """
+    if platform.system() == "Linux" and os.environ.get("XDG_SESSION_TYPE") == "wayland":
+        try:
+            manager = EvdevHotkeyManager(hotkey_combo, callback)
+            print("Using evdev for global hotkeys (Wayland)")
+            return manager
+        except ImportError as e:
+            print(f"evdev hotkeys unavailable (missing dependency): {e}")
+        except Exception as e:
+            print(f"evdev hotkeys unavailable: {e}")
+
     if is_wayland():
         try:
             manager = PortalHotkeyManager(hotkey_combo, callback)
