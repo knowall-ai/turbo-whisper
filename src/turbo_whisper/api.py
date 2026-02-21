@@ -43,7 +43,7 @@ class WhisperClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self.config.transcription_timeout) as client:
                 response = await client.post(
                     self.config.api_url,
                     headers=headers,
@@ -82,7 +82,7 @@ class WhisperClient:
         }
 
         try:
-            with httpx.Client(timeout=30.0) as client:
+            with httpx.Client(timeout=self.config.transcription_timeout) as client:
                 response = client.post(
                     self.config.api_url,
                     headers=headers,
