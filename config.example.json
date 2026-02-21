@@ -14,6 +14,7 @@
   "auto_paste": true,
   "copy_to_clipboard": true,
   "language": "en",
+  "transcription_timeout": 30.0,
   "history": [],
   "history_max": 20
 }

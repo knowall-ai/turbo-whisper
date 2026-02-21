@@ -60,6 +60,9 @@ class Config:
     language: str = "en"
     typing_delay_ms: int = 5  # Milliseconds between keystrokes (increase if terminal freezes)
 
+    # Transcription settings
+    transcription_timeout: float = 30.0  # Max seconds to wait for transcription API response
+
     # Claude Code integration
     claude_integration: bool = True  # Enable integration server for Claude Code
     claude_integration_port: int = 7878  # Port for integration HTTP server
