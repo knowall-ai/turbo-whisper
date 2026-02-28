@@ -14,6 +14,7 @@ class Typer:
         self.system = SYSTEM
         self._uinput = None
         self._evdev_available = False
+        self._xdotool_available = False
         self._typing_delay = typing_delay_ms / 1000.0  # Convert to seconds
 
         if self.system == "Linux":
@@ -21,6 +22,8 @@ class Typer:
 
     def _setup_linux(self) -> None:
         """Set up Linux typing backend (evdev for uinput access)."""
+        self._xdotool_available = shutil.which("xdotool") is not None
+
         try:
             from evdev import UInput, ecodes
 
@@ -182,12 +185,28 @@ class Typer:
             print(f"PyAutoGUI typing error: {e}")
             return self.copy_to_clipboard(text)
 
+    def _type_xdotool(self, text: str) -> bool:
+        """Type text using xdotool (X11, 0 delay)."""
+        try:
+            result = subprocess.run(
+                ["xdotool", "type", "--clearmodifiers", "--delay", "0", "--", text],
+                timeout=10,
+            )
+            return result.returncode == 0
+        except Exception as e:
+            print(f"xdotool typing failed: {e}")
+            return False
+
     def _type_linux(self, text: str) -> bool:
         """Type text on Linux using evdev UInput."""
         import time
 
         # Small delay to let focus settle after our window hides
         time.sleep(0.05)
+
+        if self._xdotool_available:
+            if self._type_xdotool(text):
+                return True
 
         if self._evdev_available and self._uinput:
             try:
