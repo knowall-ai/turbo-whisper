@@ -263,8 +263,14 @@ class HotkeyManager:
         if key in (kb.Key.shift_l, kb.Key.shift_r):
             self.current_keys.add(kb.Key.shift)
 
-        # Check if hotkey combo is pressed (special keys + char keys)
-        special_keys_match = self.hotkey_combo.issubset(self.current_keys)
+        # Check if hotkey combo is pressed (special keys + char keys).
+        # Character keys are tracked in current_chars (not current_keys), so only
+        # the non-character members of the combo need to be in current_keys;
+        # char_keys_match below covers the letter keys. Without this, any hotkey
+        # containing a letter (e.g. super+h) silently never fires.
+        special_keys_match = all(
+            k in self.current_keys for k in self.hotkey_combo if not isinstance(k, kb.KeyCode)
+        )
         char_keys_match = self.hotkey_chars.issubset(self.current_chars)
 
         if special_keys_match and char_keys_match:
