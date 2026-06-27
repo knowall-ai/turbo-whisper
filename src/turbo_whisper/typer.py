@@ -195,6 +195,19 @@ class Typer:
             except Exception as e:
                 print(f"evdev typing failed: {e}")
 
+        # X11: prefer xdotool (reliable; avoids pyautogui/tkinter quirks).
+        # --clearmodifiers releases any held modifiers (e.g. a lingering Super)
+        # so the typed letters aren't interpreted as window-manager shortcuts.
+        if shutil.which("xdotool"):
+            try:
+                subprocess.run(
+                    ["xdotool", "type", "--clearmodifiers", "--delay", "5", text],
+                    check=True,
+                )
+                return True
+            except Exception as e:
+                print(f"xdotool typing failed: {e}")
+
         # Fallback to PyAutoGUI (works on X11)
         try:
             import pyautogui
