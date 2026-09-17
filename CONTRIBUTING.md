@@ -13,7 +13,8 @@ Thanks for helping make Turbo Whisper better. Pull requests from the community a
 ```bash
 git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
-uv sync              # or: python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
+uv sync --extra dev --extra linux   # dev = pytest/black/ruff, linux = evdev typing backend
+# or: python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev,linux]"
 uv run turbo-whisper # run the app
 ```
 
@@ -23,7 +24,7 @@ See `CLAUDE.md` for the module layout, how to kill stray instances, and the `sg 
 
 - Python 3.10+, formatted with `black src/` and linted with `ruff check src/`.
 - Platform-specific code goes behind the existing backend pattern (see `hotkey.py` and `typer.py`): try the best backend for the platform, fall back gracefully, and never leave the user with *no* hotkey or *no* typing path.
-- New config keys get a default in `config.py`, an entry in `config.example.json`, and a line in the README's configuration table.
+- New config keys get a default in `config.py`, an entry in `config.example.json`, and a line in the JSON example under the README's **Configuration** section.
 - Keep the docs in `docs/` current: `TROUBLESHOOTING.adoc` for user-facing fixes, `SOLUTION_DESIGN.adoc` when cross-platform behaviour changes.
 
 ## What every PR must include

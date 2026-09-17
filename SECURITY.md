@@ -23,7 +23,7 @@ Please **do not** report security vulnerabilities through public GitHub issues, 
 ## Scope notes
 
 - The app talks to whichever API endpoint is configured. Weaknesses in third-party or self-hosted Whisper servers are out of scope, but please tell us if the client handles their responses unsafely.
-- Your config file (`~/.config/turbo-whisper/config.json`) stores the API key in plain text with user-only permissions; a report about that design is welcome, but it is a known trade-off rather than a vulnerability on its own.
-- Features that need `/dev/uinput` or `/dev/input` access (typing, Wayland hotkeys) are documented in `docs/SOLUTION_DESIGN.adoc`. Please report anything that lets the app read or inject input beyond what the documentation describes.
+- Your config file (`~/.config/turbo-whisper/config.json`) stores the API key in plain text, and its permissions follow your umask (commonly `0644`). Run `chmod 600 ~/.config/turbo-whisper/config.json` if other users share the machine. This is a known trade-off rather than a vulnerability on its own, though a report proposing a safer default is welcome.
+- Auto-typing on Linux uses a virtual keyboard via `/dev/uinput` (see `docs/SOLUTION_DESIGN.adoc`), which is why the app asks for `input` group membership. Please report anything that lets the app inject input beyond what the documentation describes.
 
 Thank you for helping keep Turbo Whisper users safe.
