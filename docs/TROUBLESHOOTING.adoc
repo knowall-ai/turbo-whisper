@@ -32,7 +32,7 @@
 |Kill all instances: `pkill -9 -f turbo_whisper`. Remove lock file: `rm -f $XDG_RUNTIME_DIR/turbo-whisper.lock`. Restart app.
 
 |**Hotkey not working on Wayland**
-|pynput works via XWayland on Wayland. Ensure XWayland is running. Check if hotkey conflicts with system shortcuts in KDE Settings > Shortcuts.
+|Turbo Whisper uses evdev for Wayland hotkeys. Ensure your user can read `/dev/input/event*` (add to `input` group and relogin). Also check for shortcut conflicts in KDE/GNOME settings.
 
 |**Transcription returns "You" or wrong text**
 |The microphone isn't capturing audio properly. Check audio levels in the app UI. If levels are near zero, see "Microphone not picking up audio" solution.

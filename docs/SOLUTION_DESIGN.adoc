@@ -205,7 +205,7 @@ sudo udevadm trigger
 
 === Current Implementation
 
-Turbo Whisper uses **pynput** for global hotkeys. On Wayland, pynput works through XWayland compatibility layer, which is more reliable than the experimental xdg-desktop-portal GlobalShortcuts API.
+Turbo Whisper uses **pynput** for global hotkeys on X11/macOS/Windows and **evdev** for Wayland on Linux. Wayland falls back to xdg-desktop-portal only when evdev is unavailable.
 
 == Window Focus Management
 
