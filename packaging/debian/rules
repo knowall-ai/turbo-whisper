@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME=turbo-whisper
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_auto_install:
+	dh_auto_install
+	# Install desktop file
+	install -Dm644 packaging/turbo-whisper.desktop debian/turbo-whisper/usr/share/applications/turbo-whisper.desktop

@@ -40,3 +40,7 @@ htmlcov/
 # Config (user-specific)
 config.json
 .env
+.env.local
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json

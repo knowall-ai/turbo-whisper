@@ -6,23 +6,29 @@
   </picture>
 </p>
 
-Turbo Whisper is a SuperWhisper-like voice dictation for Linux, macOS, and Windows with waveform UI.
+Turbo Whisper is a **free, open source** voice dictation and transcription app for Linux, macOS, and Windows. A SuperWhisper alternative with a beautiful GUI for real-time speech to text (STT). Supports **99 languages** via OpenAI Whisper. Perfect for accessibility, RSI, and hands-free typing.
+
+**Voice dictation** | **Speech to text (STT)** | **Voice typing** | **Transcription** | **Open source** | **Multilingual** | **Hands-free**
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)
+![AUR](https://img.shields.io/aur/version/turbo-whisper)
+![PPA](https://img.shields.io/badge/PPA-bengweeks%2Fturbo--whisper-orange)
 
-<img width="1554" height="678" alt="image" src="https://github.com/user-attachments/assets/1f2e0447-2152-48d6-99c3-8d49d3053ac8" />
+[Screencast_20260122_152835.webm](https://github.com/user-attachments/assets/0d53b4d5-377c-49bb-9463-24cdfdc02946)
 
 ## Features
 
 - **Global hotkey** (Ctrl+Shift+Space) to start/stop recording from anywhere
 - **Waveform visualization** - see your audio levels in real-time with an animated orb
 - **OpenAI API compatible** - works with OpenAI Whisper API or self-hosted faster-whisper-server
+- **Multilingual** - supports 99 languages via Whisper
 - **Auto-type** - transcribed text is typed directly into the focused window
 - **Clipboard support** - text is also copied to clipboard
-- **System tray** - runs quietly in the background
+- **System tray** - runs quietly in the background with autostart support
 - **Cross-platform** - Linux, macOS, and Windows support
+- **Accessibility** - great for RSI, carpal tunnel, or anyone preferring hands-free input
 
 ## Perfect for AI CLI Tools
 
@@ -36,9 +42,76 @@ Turbo Whisper is ideal for voice input with terminal-based AI tools:
 
 Simply press the hotkey, speak your prompt, and the transcription is typed directly into your terminal.
 
+### Claude Code Integration (Experimental)
+
+> **Note:** This feature is experimental and has limitations. See [issue #23](https://github.com/knowall-ai/turbo-whisper/issues/23) for planned improvements.
+
+When dictating into Claude Code, you may want to wait until Claude finishes responding before typing your text. Turbo Whisper has built-in support for this.
+
+**How it works:**
+1. Turbo Whisper runs an HTTP server on `localhost:7878`
+2. After transcription, it waits up to 2 seconds for a "ready" signal
+3. When Claude Code sends the signal, the text is typed
+
+**Setup:**
+
+1. Enable in your config (`~/.config/turbo-whisper/config.json`):
+```json
+{
+  "claude_integration": true,
+  "claude_integration_port": 7878
+}
+```
+
+2. Create a Claude Code hook at `~/.claude/hooks/post-response.sh`:
+```bash
+#!/bin/bash
+# Signal Turbo Whisper that Claude is ready for input
+curl -s -X POST http://localhost:7878/ready > /dev/null 2>&1
+```
+
+3. Make it executable:
+```bash
+chmod +x ~/.claude/hooks/post-response.sh
+```
+
+4. Configure Claude Code to run the hook (in `~/.claude/settings.json`):
+```json
+{
+  "hooks": {
+    "postResponse": ["~/.claude/hooks/post-response.sh"]
+  }
+}
+```
+
+**Without the hook:** If Claude integration is enabled but no ready signal is received within 2 seconds, the text is copied to clipboard only (not typed). You'll see "Copied (Claude busy)" in the tray notification.
+
+**To disable:** Set `"claude_integration": false` in your config for immediate typing without waiting.
+
 ## Installation
 
-### Linux (Ubuntu/Debian)
+### Ubuntu/Debian (PPA) - Recommended
+
+```bash
+sudo add-apt-repository ppa:bengweeks/turbo-whisper
+sudo apt update
+sudo apt install turbo-whisper
+```
+
+### Arch Linux (AUR) - Recommended
+
+```bash
+# Using yay
+yay -S turbo-whisper
+
+# Using paru
+paru -S turbo-whisper
+```
+
+### From Source
+
+<details>
+<summary>Ubuntu/Debian</summary>
 
 ```bash
 # Install system dependencies
@@ -52,7 +125,10 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-### Linux (Fedora)
+</details>
+
+<details>
+<summary>Fedora</summary>
 
 ```bash
 sudo dnf install python3-pyaudio portaudio-devel xdotool xclip
@@ -63,7 +139,10 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-### Linux (Arch)
+</details>
+
+<details>
+<summary>Arch Linux (manual)</summary>
 
 ```bash
 sudo pacman -S python-pyaudio portaudio xdotool xclip
@@ -73,6 +152,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
+
+</details>
 
 ### macOS
 
@@ -116,6 +197,7 @@ Create `~/.config/turbo-whisper/config.json` (Linux/macOS) or `%APPDATA%\turbo-w
   "language": "en",
   "auto_paste": true,
   "copy_to_clipboard": true,
+  "typing_delay_ms": 5,
   "waveform_color": "#00ff88",
   "background_color": "#1a1a2e"
 }
@@ -173,6 +255,36 @@ Edit your config to change the hotkey:
 ```
 
 Available modifiers: `ctrl`, `shift`, `alt`, `super`
+
+### Autostart on Login
+
+To start Turbo Whisper automatically when you log in:
+
+**Linux (all distros):**
+```bash
+# Create autostart directory if it doesn't exist
+mkdir -p ~/.config/autostart
+
+# Copy the desktop file (if installed via AUR/PPA)
+cp /usr/share/applications/turbo-whisper.desktop ~/.config/autostart/
+
+# Or create manually
+cat > ~/.config/autostart/turbo-whisper.desktop << 'EOF'
+[Desktop Entry]
+Name=Turbo Whisper
+Exec=turbo-whisper
+Type=Application
+X-GNOME-Autostart-enabled=true
+EOF
+```
+
+**macOS:**
+- Open System Preferences → Users & Groups → Login Items
+- Click + and add Turbo Whisper
+
+**Windows:**
+- Press Win+R, type `shell:startup`, press Enter
+- Create a shortcut to `turbo-whisper` in that folder
 
 ## Self-Hosting Whisper
 
@@ -252,6 +364,14 @@ Update your config to use the self-hosted server:
 curl http://localhost:8000/health
 ```
 
+## Documentation
+
+For detailed documentation, see the [`docs/`](docs/) directory:
+
+- **[Installation Guide](docs/INSTALLATION.adoc)** - Complete installation instructions for all platforms
+- **[Solution Design](docs/SOLUTION_DESIGN.adoc)** - Technical architecture and cross-platform compatibility
+- **[Troubleshooting](docs/TROUBLESHOOTING.adoc)** - Common issues and solutions
+
 ## Troubleshooting
 
 ### Linux: Hotkey conflicts
@@ -272,9 +392,15 @@ pipwin install pyaudio
 ### macOS: Accessibility permissions
 Grant accessibility permissions to your terminal app in System Preferences → Security & Privacy → Privacy → Accessibility.
 
+For more troubleshooting tips, see [docs/TROUBLESHOOTING.adoc](docs/TROUBLESHOOTING.adoc).
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+## Keywords
+
+Voice dictation Linux, speech to text, STT, voice typing, transcription, transcribe audio, OpenAI Whisper GUI, dictation software, speech recognition, voice input, hands-free typing, accessibility, SuperWhisper alternative, faster-whisper, voice to text CLI, terminal dictation, free open source, multilingual, 99 languages, RSI, carpal tunnel, real-time transcription, local whisper, offline speech recognition, nerd-dictation alternative, voice coding, voice input terminal, how to dictate on Linux, best voice dictation Linux, Ubuntu voice typing, Arch Linux dictation.
 
 ## Credits
 

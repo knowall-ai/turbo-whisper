@@ -1,0 +1,260 @@
+= Turbo Whisper Solution Design
+:toc:
+:toclevels: 3
+
+== Cross-Platform Compatibility Summary
+
+[cols="1,1,1,1,1"]
+|===
+|Platform |Typing |Hotkey |Audio |Window Focus
+
+|**Windows**
+|✅ PyAutoGUI
+|✅ pynput
+|✅ PyAudio
+|✅ Qt flags
+
+|**macOS**
+|✅ PyAutoGUI*
+|✅ pynput*
+|✅ PyAudio
+|✅ Qt flags
+
+|**Linux X11**
+|✅ PyAutoGUI/evdev
+|✅ pynput
+|✅ PyAudio
+|✅ Qt flags
+
+|**Linux Wayland**
+|✅ evdev
+|✅ pynput (XWayland)
+|✅ PyAudio+pipewire-alsa
+|✅ Qt flags
+|===
+
+_* Requires accessibility permissions on macOS (see <<Platform-Specific Permissions>>)_
+
+== Audio Recording
+
+=== Cross-Platform Python Audio Libraries
+
+[cols="1,1,1,1,1,2"]
+|===
+|Library |Windows |macOS |Linux X11 |Linux Wayland/PipeWire |Notes
+
+|**PyAudio**
+|Yes
+|Yes
+|Yes
+|Requires `pipewire-alsa`
+|Most common, uses PortAudio
+
+|**sounddevice**
+|Yes
+|Yes
+|Yes
+|Requires `pipewire-alsa`
+|Nicer API than PyAudio
+
+|**SoundCard**
+|Yes
+|Yes
+|Yes
+|Native PipeWire support
+|Pure Python, no C dependencies
+
+|**PvRecorder**
+|Yes
+|Yes
+|Yes
+|Yes
+|Made for speech recognition
+
+|**pipewire_python**
+|No
+|No
+|No
+|Yes
+|Linux/PipeWire only
+|===
+
+=== Current Implementation
+
+Turbo Whisper uses **PyAudio** for audio recording. This provides good cross-platform support for Windows, macOS, and Linux.
+
+==== Linux/PipeWire Requirements
+
+On modern Linux systems using PipeWire (default on Fedora, Ubuntu 22.10+, etc.), the `pipewire-alsa` package must be installed to bridge ALSA applications (like PyAudio) to PipeWire:
+
+[source,bash]
+----
+sudo apt install pipewire-alsa  # Debian/Ubuntu
+sudo dnf install pipewire-alsa  # Fedora
+----
+
+Without this package, PyAudio will access raw ALSA devices which bypass PipeWire's audio routing, resulting in silence or wrong device selection.
+
+== Auto-Typing (Text Input)
+
+=== Cross-Platform Typing Methods
+
+[cols="1,1,1,1,1,2"]
+|===
+|Tool |Windows |macOS |Linux X11 |Linux Wayland |Notes
+
+|**PyAutoGUI**
+|Yes
+|Yes
+|Yes
+|No
+|Python library, simple API
+
+|**evdev (python-evdev)**
+|No
+|No
+|Yes
+|Yes
+|Kernel uinput, needs input group
+
+|**xdotool**
+|No
+|No
+|Yes
+|XWayland only
+|X11 protocol, works for XWayland apps
+
+|**wtype**
+|No
+|No
+|No
+|Partial
+|Needs compositor virtual-keyboard support
+
+|**ydotool**
+|No
+|No
+|Yes
+|Yes
+|CLI tool, uses uinput, needs daemon
+
+|**Clipboard**
+|Yes
+|Yes
+|Yes
+|Yes
+|Fallback: copy + Ctrl+V
+|===
+
+=== Current Implementation
+
+Turbo Whisper uses **PyAutoGUI** for Windows/macOS and **evdev** for Linux:
+
+* **Windows/macOS**: PyAutoGUI - pure Python, simple API, works everywhere
+* **Linux**: evdev (python-evdev) - creates a virtual keyboard via `/dev/uinput`, works on both X11 and Wayland
+* **Fallback**: PyAutoGUI on X11, then clipboard if all else fails
+
+==== Linux evdev Setup
+
+evdev requires access to `/dev/uinput`. Set up permissions:
+
+[source,bash]
+----
+# Add user to input group
+sudo usermod -aG input $USER
+
+# Create udev rule for uinput permissions
+echo 'KERNEL=="uinput", GROUP="input", MODE="0660"' | sudo tee /etc/udev/rules.d/99-uinput.rules
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
+# Log out and back in for group change to take effect
+----
+
+== Global Hotkeys
+
+=== Cross-Platform Hotkey Methods
+
+[cols="1,1,1,1,1,2"]
+|===
+|Method |Windows |macOS |Linux X11 |Linux Wayland |Notes
+
+|**pynput**
+|Yes
+|Yes
+|Yes
+|Via XWayland
+|Works on Wayland through XWayland compatibility
+
+|**xdg-desktop-portal GlobalShortcuts**
+|No
+|No
+|No
+|Partial
+|D-Bus API, not fully supported on KDE
+
+|**keyboard (Python)**
+|Yes
+|Yes
+|Yes
+|No
+|Requires root on Linux
+|===
+
+=== Current Implementation
+
+Turbo Whisper uses **pynput** for global hotkeys. On Wayland, pynput works through XWayland compatibility layer, which is more reliable than the experimental xdg-desktop-portal GlobalShortcuts API.
+
+== Window Focus Management
+
+The recording window is designed to appear without stealing focus from the user's current application. This ensures dictated text is typed into the correct window.
+
+=== Qt Window Flags
+
+[source,python]
+----
+self.setWindowFlags(
+    Qt.WindowType.FramelessWindowHint
+    | Qt.WindowType.WindowStaysOnTopHint
+    | Qt.WindowType.Tool
+    | Qt.WindowType.WindowDoesNotAcceptFocus
+)
+self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+----
+
+* `Tool` - Floating utility window (doesn't appear in taskbar)
+* `WindowDoesNotAcceptFocus` - Window cannot receive keyboard focus
+* `WA_ShowWithoutActivating` - Window appears without activating
+
+=== Platform Notes
+
+* **Windows/Linux**: Both flags work as expected
+* **macOS**: `Tool` windows already don't steal focus; additional flags provide extra safety
+
+== Platform-Specific Permissions
+
+=== macOS
+
+PyAutoGUI and pynput require special permissions on macOS:
+
+* **Accessibility**: System Preferences → Security & Privacy → Privacy → Accessibility
+* **Input Monitoring**: System Preferences → Security & Privacy → Privacy → Input Monitoring
+
+Add your terminal app or the Turbo Whisper app to both lists.
+
+=== Linux (evdev)
+
+evdev requires access to `/dev/uinput` (see Auto-Typing section above).
+
+=== Windows
+
+PyAutoGUI works without special permissions, but some elevated applications may block simulated keyboard input.
+
+== Single Instance
+
+The application uses file locking (`fcntl.flock`) to ensure only one instance runs at a time. The lock file is stored at:
+
+* Linux: `$XDG_RUNTIME_DIR/turbo-whisper.lock`
+* Fallback: `/tmp/turbo-whisper.lock`

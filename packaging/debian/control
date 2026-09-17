@@ -1,0 +1,55 @@
+Source: turbo-whisper
+Section: sound
+Priority: optional
+Maintainer: Ben Weeks <ben.weeks@outlook.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               pybuild-plugin-pyproject,
+               python3-all,
+               python3-setuptools,
+               python3-hatchling,
+               python3-build
+Standards-Version: 4.6.0
+Homepage: https://github.com/knowall-ai/turbo-whisper
+Vcs-Git: https://github.com/knowall-ai/turbo-whisper.git
+Vcs-Browser: https://github.com/knowall-ai/turbo-whisper
+Rules-Requires-Root: no
+
+Package: turbo-whisper
+Architecture: all
+Depends: ${python3:Depends},
+         ${misc:Depends},
+         python3-pyqt6,
+         python3-pyqt6.qtsvg,
+         python3-pyaudio,
+         python3-numpy,
+         python3-httpx,
+         python3-pynput,
+         python3-xlib,
+         python3-evdev,
+         portaudio19-dev,
+         xdotool,
+         xclip
+Suggests: wtype, wl-clipboard
+Description: Voice dictation and transcription GUI for Linux (STT)
+ Turbo Whisper is a free, open source voice dictation application for Linux.
+ A SuperWhisper alternative that provides real-time speech to text (STT)
+ transcription using OpenAI Whisper API or self-hosted faster-whisper-server.
+ Supports 99 languages. Voice typing made easy with a beautiful GUI.
+ .
+ Features:
+  - Global hotkey to start/stop recording from anywhere
+  - Animated waveform visualization (OpenAI/ElevenLabs style orb)
+  - OpenAI Whisper API compatible (works with self-hosted/local servers)
+  - Auto-types transcribed text into focused window
+  - Multilingual support (99 languages via Whisper)
+  - System tray integration with autostart support
+ .
+ Perfect for voice input with AI CLI tools like Claude Code, Aider, and
+ terminal applications. Great for accessibility, RSI, carpal tunnel, and
+ hands-free typing.
+ .
+ Keywords: voice dictation, speech to text, stt, whisper gui, transcription,
+ voice typing, voice input, dictation software, speech recognition, accessibility,
+ rsi, carpal tunnel, hands-free, open source, free, multilingual, real-time,
+ superwhisper alternative, nerd-dictation alternative, local, offline

@@ -13,7 +13,9 @@ class WaveformWidget(QWidget):
 
     def __init__(self, parent=None, color="#84cc16", bg_color="#1a1a2e"):
         super().__init__(parent)
-        self.base_color = QColor(color)
+        self.recording_color = QColor(color)  # Green when recording
+        self.idle_color = QColor("#f97316")  # Orange when idle
+        self.base_color = self.idle_color  # Start with idle color
         self.bg_color = QColor(bg_color)
 
         # Audio state
@@ -25,25 +27,44 @@ class WaveformWidget(QWidget):
 
         # Animation state
         self.phase = 0.0
-        self.blob_points = 64  # Points around the blob
+        self.blob_points = 32  # Points around the blob (fewer = smoother curves)
 
         # Smooth animation timer
         self.animation_timer = QTimer(self)
         self.animation_timer.timeout.connect(self._animate)
         self.animation_timer.setInterval(16)  # ~60 FPS
 
-        # Silence threshold - below this, minimal animation
-        # Lowered for quiet mics
-        self.silence_threshold = 0.001
-
-        # Sensitivity (amplification factor) - can be adjusted via settings
-        self.sensitivity = 200
+        # Sensitivity threshold - slider value (1-500) maps to threshold
+        # Lower sensitivity = higher threshold = less responsive
+        # Higher sensitivity = lower threshold = more responsive
+        self._sensitivity_value = 200
+        self._update_threshold()
 
         self.setMinimumHeight(130)
+
+    @property
+    def sensitivity(self) -> int:
+        """Get sensitivity value (1-500)."""
+        return self._sensitivity_value
+
+    @sensitivity.setter
+    def sensitivity(self, value: int) -> None:
+        """Set gain value (0-200, where 100 = normal)."""
+        self._sensitivity_value = max(0, min(200, value))
+        self._update_threshold()
+
+    def _update_threshold(self) -> None:
+        """Update gain based on sensitivity value."""
+        # Gain controls how much we amplify the mic signal
+        # 0 = mute, 100 = 1.0x (normal), 200 = 2.0x (double)
+        # Use a fixed low threshold; gain is purely about amplification
+        self.silence_threshold = 0.03  # Fixed low threshold
+        self._gain = self._sensitivity_value / 100.0  # 0.0 to 2.0 gain
 
     def set_recording(self, recording: bool) -> None:
         """Set recording state."""
         self.is_recording = recording
+        self.base_color = self.recording_color if recording else self.idle_color
         self.waveform_data = []
         self.current_level = 0.0
         self.target_level = 0.0
@@ -59,8 +80,9 @@ class WaveformWidget(QWidget):
     def update_waveform(self, level: float, waveform_buffer: list[float]) -> None:
         """Update with new audio data."""
         self.waveform_data = waveform_buffer
-        # Amplify based on sensitivity setting
-        amplified = min(1.0, level * self.sensitivity)
+        # Apply gain based on sensitivity setting
+        # This allows quiet mics to produce visible response
+        amplified = min(1.0, level * self._gain)
         self.target_level = amplified
         self.level_history.append(amplified)
 

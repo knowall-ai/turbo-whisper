@@ -1,0 +1,99 @@
+{
+  "name": "turbo-whisper-integration",
+  "version": "1.2.0",
+  "description": "Voice dictation and TTS integration with Turbo Whisper - signals when Claude is ready, speaks summaries and notifications",
+  "author": {
+    "name": "KnowAll AI",
+    "url": "https://github.com/knowall-ai"
+  },
+  "repository": "https://github.com/knowall-ai/turbo-whisper",
+  "homepage": "https://github.com/knowall-ai/turbo-whisper",
+  "license": "MIT",
+  "keywords": ["voice", "dictation", "turbo-whisper", "speech-to-text", "tts", "text-to-speech"],
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/signal-ready.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/speak-summary.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/signal-ready.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/signal-ready.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/speak-notification.sh permission_prompt"
+          }
+        ]
+      },
+      {
+        "matcher": "elicitation_dialog",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/speak-notification.sh elicitation_dialog"
+          }
+        ]
+      },
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/speak-notification.sh idle_prompt"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/speak-notification.sh pre_compact_auto"
+          }
+        ]
+      },
+      {
+        "matcher": "manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/speak-notification.sh pre_compact_manual"
+          }
+        ]
+      }
+    ]
+  }
+}

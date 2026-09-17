@@ -1,0 +1,243 @@
+= Turbo Whisper Installation Guide
+:toc:
+:toclevels: 2
+
+== Quick Start
+
+[source,bash]
+----
+# Clone the repository
+git clone https://github.com/knowall-ai/turbo-whisper.git
+cd turbo-whisper
+
+# Install with uv (recommended)
+uv sync
+
+# Run (Linux - see platform setup below first)
+sg input -c "uv run turbo-whisper"
+
+# Run (Windows/macOS)
+uv run turbo-whisper
+----
+
+== Prerequisites
+
+=== All Platforms
+
+* Python 3.10 or higher
+* A Whisper-compatible API endpoint (OpenAI API or self-hosted https://github.com/fedirz/faster-whisper-server[faster-whisper-server])
+
+=== Linux (Ubuntu/Debian)
+
+[source,bash]
+----
+# System dependencies
+sudo apt install python3-dev portaudio19-dev
+
+# PipeWire audio bridge (required for modern Ubuntu/Fedora)
+sudo apt install pipewire-alsa
+----
+
+=== Linux (Fedora/RHEL)
+
+[source,bash]
+----
+# System dependencies
+sudo dnf install python3-devel portaudio-devel
+
+# PipeWire audio bridge
+sudo dnf install pipewire-alsa
+----
+
+=== macOS
+
+[source,bash]
+----
+# Install PortAudio via Homebrew
+brew install portaudio
+----
+
+=== Windows
+
+No additional system dependencies required. PyAudio wheels are available on PyPI.
+
+== Installation Methods
+
+=== Using uv (Recommended)
+
+https://docs.astral.sh/uv/[uv] is a fast Python package manager.
+
+[source,bash]
+----
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone and install
+git clone https://github.com/knowall-ai/turbo-whisper.git
+cd turbo-whisper
+uv sync
+----
+
+=== Using pip
+
+[source,bash]
+----
+# Clone the repository
+git clone https://github.com/knowall-ai/turbo-whisper.git
+cd turbo-whisper
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# or: .venv\Scripts\activate  # Windows
+
+# Install
+pip install -e .
+
+# Install platform-specific extras
+pip install -e ".[linux]"    # Linux
+pip install -e ".[wayland]"  # Linux Wayland
+pip install -e ".[windows]"  # Windows
+----
+
+== Platform-Specific Setup
+
+=== Linux: evdev Permissions
+
+Turbo Whisper uses evdev to simulate keyboard input on Linux. This requires access to `/dev/uinput`.
+
+[source,bash]
+----
+# Add your user to the input group
+sudo usermod -aG input $USER
+
+# Create udev rule for uinput permissions
+echo 'KERNEL=="uinput", GROUP="input", MODE="0660"' | \
+    sudo tee /etc/udev/rules.d/99-uinput.rules
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
+# IMPORTANT: Log out and back in for group changes to take effect
+----
+
+After logging back in, verify your group membership:
+
+[source,bash]
+----
+groups | grep input
+----
+
+=== macOS: Accessibility Permissions
+
+PyAutoGUI and pynput require special permissions on macOS:
+
+1. Open **System Preferences** (or System Settings on macOS 13+)
+2. Go to **Security & Privacy** → **Privacy**
+3. Add your terminal app (Terminal, iTerm2, etc.) to:
+   * **Accessibility**
+   * **Input Monitoring**
+
+If running as a packaged app, add the Turbo Whisper app instead.
+
+=== Windows: Elevated Applications
+
+PyAutoGUI works without special permissions on Windows. However, text cannot be typed into applications running with administrator privileges unless Turbo Whisper is also run as administrator.
+
+== Running the Application
+
+=== Linux
+
+[source,bash]
+----
+# With uv (recommended)
+sg input -c "uv run turbo-whisper"
+
+# With pip installation
+sg input -c "turbo-whisper"
+
+# Or if you've logged out/in after adding to input group:
+uv run turbo-whisper
+----
+
+The `sg input -c` wrapper temporarily applies the input group without requiring a full logout.
+
+=== macOS / Windows
+
+[source,bash]
+----
+# With uv
+uv run turbo-whisper
+
+# With pip installation
+turbo-whisper
+----
+
+== Configuration
+
+On first run, Turbo Whisper creates a configuration file at:
+
+* **Linux**: `~/.config/turbo-whisper/config.json`
+* **macOS**: `~/Library/Application Support/turbo-whisper/config.json`
+* **Windows**: `%APPDATA%\turbo-whisper\config.json`
+
+=== Key Settings
+
+[cols="1,2,1"]
+|===
+|Setting |Description |Default
+
+|`api_url`
+|Whisper API endpoint URL
+|`http://localhost:8000/v1/audio/transcriptions`
+
+|`api_key`
+|API key (required for OpenAI, optional for self-hosted)
+|_(empty)_
+
+|`hotkey`
+|Global hotkey to start/stop recording
+|`["ctrl", "shift", "space"]`
+
+|`sensitivity`
+|Microphone sensitivity (0-200)
+|`100`
+
+|`auto_paste`
+|Automatically type transcribed text
+|`true`
+|===
+
+=== Using with OpenAI API
+
+1. Get an API key from https://platform.openai.com/api-keys
+2. Set the API URL to: `https://api.openai.com/v1/audio/transcriptions`
+3. Enter your API key in the settings panel
+
+=== Using with Self-Hosted Server
+
+For local/private transcription, use https://github.com/fedirz/faster-whisper-server[faster-whisper-server]:
+
+[source,bash]
+----
+# Run faster-whisper-server with Docker
+docker run -d -p 8000:8000 fedirz/faster-whisper-server
+
+# Or with GPU support
+docker run -d --gpus all -p 8000:8000 fedirz/faster-whisper-server
+----
+
+The default API URL (`http://localhost:8000/v1/audio/transcriptions`) works with faster-whisper-server out of the box.
+
+== Verifying Installation
+
+1. Run `turbo-whisper` (or `uv run turbo-whisper`)
+2. Look for the orange orb icon in your system tray
+3. Press `Ctrl+Shift+Space` to start recording
+4. Speak, then press the hotkey again to stop
+5. The transcribed text should be typed into your focused application
+
+== Troubleshooting
+
+See link:TROUBLESHOOTING.adoc[TROUBLESHOOTING.adoc] for common issues and solutions.
