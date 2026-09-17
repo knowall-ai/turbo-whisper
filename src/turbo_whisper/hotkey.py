@@ -315,6 +315,138 @@ class HotkeyManager:
             self.listener = None
 
 
+class X11GrabHotkeyManager:
+    """X11 global hotkey via a server-side XGrabKey.
+
+    Unlike the pynput (XRecord) listener in HotkeyManager, which only
+    *observes* keys and therefore lets the combo's letter (e.g. the 'h' in
+    Super+h) leak through to the focused window, an X server keyboard grab
+    intercepts the combo so the keypress is delivered only to us and is
+    never typed into the focused application. Requires python-xlib.
+    """
+
+    def __init__(self, hotkey_combo: list[str], callback: Callable[[], None]):
+        self.callback = callback
+        self.hotkey_combo = [k.lower() for k in hotkey_combo]
+        self._running = False
+        self._thread = None
+        self._disp = None
+        self._keycode = None
+        self._last_trigger = 0.0
+        self._debounce_ms = 300
+
+    def _resolve(self, disp):
+        """Map the combo to (modifier_mask, keycode); (None, None) if not resolvable."""
+        from Xlib import X
+
+        mod = 0
+        keyname = None
+        mods = {
+            "super": X.Mod4Mask,
+            "cmd": X.Mod4Mask,
+            "ctrl": X.ControlMask,
+            "control": X.ControlMask,
+            "alt": X.Mod1Mask,
+            "option": X.Mod1Mask,
+            "shift": X.ShiftMask,
+        }
+        for k in self.hotkey_combo:
+            if k in mods:
+                mod |= mods[k]
+            else:
+                keyname = k
+        if keyname is None:
+            return None, None
+        special = {"space": " ", "enter": "\r", "return": "\r", "tab": "\t", "esc": "\x1b"}
+        ch = special.get(keyname, keyname)
+        if len(ch) != 1:
+            return None, None
+        keycode = disp.keysym_to_keycode(ord(ch))
+        if not keycode:
+            return None, None
+        return mod, keycode
+
+    def _run(self) -> None:
+        from Xlib import X
+        from Xlib.display import Display
+
+        try:
+            disp = Display()
+        except Exception as e:  # needs a live X server
+            print(f"X11Grab: cannot open display: {e}")
+            return
+        self._disp = disp
+        root = disp.screen().root
+        mod, keycode = self._resolve(disp)
+        if keycode is None:
+            print("X11Grab: could not resolve hotkey to a keycode")
+            return
+        self._keycode = keycode
+
+        # Grab the combo for every combination of the "hidden" lock modifiers
+        # (NumLock=Mod2, CapsLock=Lock, ScrollLock=Mod5) so the grab matches
+        # regardless of their state. A mask combo already grabbed by another
+        # app is just skipped.
+        lock_variants = [
+            0,
+            X.Mod2Mask,
+            X.LockMask,
+            X.Mod2Mask | X.LockMask,
+            X.Mod5Mask,
+            X.Mod5Mask | X.Mod2Mask,
+        ]
+        grabbed = 0
+        for lv in lock_variants:
+            try:
+                root.grab_key(keycode, mod | lv, False, X.GrabModeAsync, X.GrabModeAsync)
+                grabbed += 1
+            except Exception:
+                pass
+        if not grabbed:
+            print("X11Grab: grab_key failed for all modifier combinations")
+            return
+
+        # OR KeyPressMask onto root's existing event mask (don't clobber others).
+        try:
+            cur = root.get_attributes().your_event_mask
+            root.change_attributes(event_mask=cur | X.KeyPressMask)
+        except Exception:
+            root.change_attributes(event_mask=X.KeyPressMask)
+        disp.flush()
+        print(f"X11Grab: active (keycode {keycode}, {grabbed} mask variants)")
+
+        while self._running:
+            try:
+                ev = disp.next_event()
+            except Exception:
+                break
+            if ev.type == X.KeyPress:
+                now = time.time() * 1000
+                if now - self._last_trigger > self._debounce_ms:
+                    self._last_trigger = now
+                    self.callback()
+
+    def start(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._running = False
+        # Release the grab so the key isn't left grabbed after quit.
+        try:
+            if self._disp is not None and self._keycode is not None:
+                from Xlib import X
+
+                self._disp.screen().root.ungrab_key(self._keycode, X.AnyModifier)
+                self._disp.flush()
+        except Exception:
+            pass
+        self._thread = None
+
+
 def create_hotkey_manager(
     hotkey_combo: list[str], callback: Callable[[], None]
 ) -> HotkeyManager | PortalHotkeyManager | None:
@@ -339,4 +471,14 @@ def create_hotkey_manager(
             print(f"Portal hotkeys unavailable: {e}")
             return None
     else:
+        # On X11, prefer a server-side XGrabKey so the hotkey's letter is
+        # swallowed (not typed into the focused window). Fall back to the
+        # pynput passive listener if xlib is unavailable.
+        if os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+            try:
+                mgr = X11GrabHotkeyManager(hotkey_combo, callback)
+                print("Using X11 XGrabKey for global hotkey (key is swallowed)")
+                return mgr
+            except Exception as e:
+                print(f"X11 grab unavailable ({e}); falling back to pynput listener")
         return HotkeyManager(hotkey_combo, callback)
