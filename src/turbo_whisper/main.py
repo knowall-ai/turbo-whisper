@@ -49,12 +49,14 @@ from .icons import (
 from .recorder import AudioRecorder
 from .typer import Typer
 from .waveform import WaveformWidget
+from .window import WindowDetector
 
 
 class SignalBridge(QObject):
     """Bridge for thread-safe Qt signals."""
 
     toggle_recording = pyqtSignal()
+    focused_window_detected = pyqtSignal(str, int)
     update_waveform = pyqtSignal(float, list)
     transcription_complete = pyqtSignal(str)
     transcription_error = pyqtSignal(str)
@@ -972,6 +974,7 @@ class TurboWhisper:
         # Components
         self.recorder = AudioRecorder(self.config)
         self.client = WhisperClient(self.config)
+        self.window_detector = WindowDetector()
         self.typer = Typer(typing_delay_ms=self.config.typing_delay_ms)
         self.signals = SignalBridge()
 
@@ -981,10 +984,12 @@ class TurboWhisper:
 
         # State
         self.is_recording = False
+        self._recording_token = 0
         self._pending_waveform_data = None  # Thread-safe buffer for waveform data
 
         # Connect signals
         self.signals.toggle_recording.connect(self._toggle_recording)
+        self.signals.focused_window_detected.connect(self._on_focused_window_detected)
         self.signals.transcription_complete.connect(self._on_transcription_complete)
         self.signals.transcription_error.connect(self._on_transcription_error)
         self.signals.show_status.connect(self.window.set_status)
@@ -1051,8 +1056,10 @@ class TurboWhisper:
     def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         """Handle tray icon clicks."""
         # Trigger = left click, DoubleClick = double click
-        if reason in (QSystemTrayIcon.ActivationReason.Trigger,
-                      QSystemTrayIcon.ActivationReason.DoubleClick):
+        if reason in (
+            QSystemTrayIcon.ActivationReason.Trigger,
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+        ):
             self._show_window()
 
     def _update_icons(self, recording: bool) -> None:
@@ -1103,6 +1110,16 @@ class TurboWhisper:
             return
 
         self.is_recording = True
+        self._recording_token += 1
+        current_token = self._recording_token
+
+        # Find focused app on background thread to keep hotkey/UI responsive
+        threading.Thread(
+            target=self._detect_focused_window,
+            args=(current_token,),
+            daemon=True,
+        ).start()
+
         self.toggle_action.setText("Stop Recording")
         self._update_icons(recording=True)
 
@@ -1126,12 +1143,28 @@ class TurboWhisper:
         # Start recording
         self.recorder.start(level_callback=self._on_audio_level)
 
+    def _detect_focused_window(self, token: int) -> None:
+        """Background worker: detect and report focused window name."""
+        try:
+            name = self.window_detector.get_focused_window_name()
+        except Exception as e:
+            print(f"Window detection failed: {e}")
+            return
+        if name:
+            self.signals.focused_window_detected.emit(name, token)
+
+    def _on_focused_window_detected(self, name: str, token: int) -> None:
+        """Show which app will receive dictation if still recording current session."""
+        if self.is_recording and token == self._recording_token:
+            self.window.set_status(f"Listening ({name})", animate=True)
+
     def _cancel_recording(self) -> None:
         """Cancel recording without transcribing."""
         if not self.is_recording:
             return
 
         self.is_recording = False
+        self._recording_token += 1
         self.toggle_action.setText("Start Recording")
         self._update_icons(recording=False)
 
@@ -1158,6 +1191,7 @@ class TurboWhisper:
             return
 
         self.is_recording = False
+        self._recording_token += 1
         self.toggle_action.setText("Start Recording")
         self._update_icons(recording=False)
 
@@ -1277,9 +1311,11 @@ class TurboWhisper:
                     self.typer.type_text(text)
                     self.tray.showMessage(
                         "Turbo Whisper",
-                        f"Transcribed: {text[:50]}..."
-                        if len(text) > 50
-                        else f"Transcribed: {text}",
+                        (
+                            f"Transcribed: {text[:50]}..."
+                            if len(text) > 50
+                            else f"Transcribed: {text}"
+                        ),
                         QSystemTrayIcon.MessageIcon.Information,
                         2000,
                     )
@@ -1294,9 +1330,7 @@ class TurboWhisper:
             else:
                 self.tray.showMessage(
                     "Turbo Whisper",
-                    f"Transcribed: {text[:50]}..."
-                    if len(text) > 50
-                    else f"Transcribed: {text}",
+                    f"Transcribed: {text[:50]}..." if len(text) > 50 else f"Transcribed: {text}",
                     QSystemTrayIcon.MessageIcon.Information,
                     2000,
                 )
