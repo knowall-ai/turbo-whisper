@@ -28,6 +28,9 @@
 |**xdotool types into wrong window**
 |xdotool only works for XWayland apps, not native Wayland apps like VS Code or Ghostty. Ensure evdev is working (see above) for native Wayland support.
 
+|**Focused window detection shows just "Listening" on KDE Wayland**
+|Wayland's security model restricts apps from querying other windows. On KDE Plasma Wayland, install `kdotool` (`yay -S kdotool` on Arch, or `cargo install kdotool`). Turbo Whisper will automatically detect `kdotool` and display the active application name next to "Listening".
+
 |**Multiple app instances running**
 |Kill all instances: `pkill -9 -f turbo_whisper`. Remove lock file: `rm -f $XDG_RUNTIME_DIR/turbo-whisper.lock`. Restart app.
 
