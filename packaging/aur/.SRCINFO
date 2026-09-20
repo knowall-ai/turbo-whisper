@@ -23,7 +23,6 @@ pkgbase = turbo-whisper
 	depends = xclip
 	optdepends = wtype: Wayland typing support
 	optdepends = wl-clipboard: Wayland clipboard support
-	optdepends = kdotool: KDE Wayland focused window detection
 	source = turbo-whisper-1.0.2.tar.gz::https://github.com/knowall-ai/turbo-whisper/archive/v1.0.2.tar.gz
 	sha256sums = SKIP
 
