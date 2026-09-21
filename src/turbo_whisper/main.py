@@ -996,10 +996,17 @@ class TurboWhisper:
         self._waveform_timer.setInterval(30)  # Poll at ~33 FPS
 
         # Hotkey - use appropriate backend for platform
-        self.hotkey_manager = create_hotkey_manager(
-            self.config.hotkey,
-            lambda: self.signals.toggle_recording.emit(),
-        )
+        if self.config.push_to_talk:
+            self.hotkey_manager = create_hotkey_manager(
+                self.config.hotkey,
+                self._on_hotkey_activate,
+                self._on_hotkey_deactivate,
+            )
+        else:
+            self.hotkey_manager = create_hotkey_manager(
+                self.config.hotkey,
+                self._on_hotkey_activate,
+            )
         if self.hotkey_manager is None:
             print("Warning: Global hotkeys not available on this platform")
 
@@ -1047,6 +1054,19 @@ class TurboWhisper:
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._on_tray_activated)
         self.tray.show()
+
+    def _on_hotkey_activate(self) -> None:
+        """Handle global hotkey down/activate event."""
+        if self.config.push_to_talk:
+            if not self.is_recording:
+                self.signals.toggle_recording.emit()
+            return
+        self.signals.toggle_recording.emit()
+
+    def _on_hotkey_deactivate(self) -> None:
+        """Handle global hotkey up/deactivate event."""
+        if self.config.push_to_talk and self.is_recording:
+            self.signals.toggle_recording.emit()
 
     def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         """Handle tray icon clicks."""
