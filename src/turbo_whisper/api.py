@@ -17,6 +17,15 @@ class WhisperClient:
     def __init__(self, config: Config):
         self.config = config
 
+    def _timeout(self) -> httpx.Timeout:
+        """Build the request timeout.
+
+        transcription_timeout applies to read/write so long recordings can finish,
+        while connect/pool stay short so a wrong URL fails fast.
+        """
+        limit = self.config.transcription_timeout
+        return httpx.Timeout(limit, connect=min(10.0, limit), pool=min(10.0, limit))
+
     async def transcribe(self, audio_data: bytes) -> str:
         """
         Send audio to Whisper API and return transcription.
@@ -43,7 +52,7 @@ class WhisperClient:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=self._timeout()) as client:
                 response = await client.post(
                     self.config.api_url,
                     headers=headers,
@@ -82,7 +91,7 @@ class WhisperClient:
         }
 
         try:
-            with httpx.Client(timeout=30.0) as client:
+            with httpx.Client(timeout=self._timeout()) as client:
                 response = client.post(
                     self.config.api_url,
                     headers=headers,
