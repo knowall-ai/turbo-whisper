@@ -49,12 +49,14 @@ from .icons import (
 from .recorder import AudioRecorder
 from .typer import Typer
 from .waveform import WaveformWidget
+from .window import WindowDetector
 
 
 class SignalBridge(QObject):
     """Bridge for thread-safe Qt signals."""
 
     toggle_recording = pyqtSignal()
+    focused_window_detected = pyqtSignal(int, str)  # (recording generation, app name)
     update_waveform = pyqtSignal(float, list)
     transcription_complete = pyqtSignal(str)
     transcription_error = pyqtSignal(str)
@@ -972,6 +974,7 @@ class TurboWhisper:
         # Components
         self.recorder = AudioRecorder(self.config)
         self.client = WhisperClient(self.config)
+        self.window_detector = WindowDetector()
         self.typer = Typer(typing_delay_ms=self.config.typing_delay_ms)
         self.signals = SignalBridge()
 
@@ -985,6 +988,8 @@ class TurboWhisper:
 
         # Connect signals
         self.signals.toggle_recording.connect(self._toggle_recording)
+        self.signals.focused_window_detected.connect(self._on_focused_window_detected)
+        self._recording_generation = 0  # bumped per recording; stale detections are ignored
         self.signals.transcription_complete.connect(self._on_transcription_complete)
         self.signals.transcription_error.connect(self._on_transcription_error)
         self.signals.show_status.connect(self.window.set_status)
@@ -1102,6 +1107,15 @@ class TurboWhisper:
         if self.is_recording:
             return
 
+        # Find the focused app off the UI thread so a slow or missing helper
+        # (xdotool/kdotool) can never delay the hotkey response.
+        self._recording_generation += 1
+        threading.Thread(
+            target=self._detect_focused_window,
+            args=(self._recording_generation,),
+            daemon=True,
+        ).start()
+
         self.is_recording = True
         self.toggle_action.setText("Stop Recording")
         self._update_icons(recording=True)
@@ -1125,6 +1139,21 @@ class TurboWhisper:
 
         # Start recording
         self.recorder.start(level_callback=self._on_audio_level)
+
+    def _detect_focused_window(self, generation: int) -> None:
+        """Background worker: report the focused window name via a signal."""
+        try:
+            name = self.window_detector.get_focused_window_name()
+        except Exception as e:
+            print(f"Window detection failed: {e}")
+            return
+        if name:
+            self.signals.focused_window_detected.emit(generation, name)
+
+    def _on_focused_window_detected(self, generation: int, name: str) -> None:
+        """Show which app will receive the dictation, unless the result is stale."""
+        if self.is_recording and generation == self._recording_generation:
+            self.window.set_status(f"Listening ({name})", animate=True)
 
     def _cancel_recording(self) -> None:
         """Cancel recording without transcribing."""
