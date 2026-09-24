@@ -4,7 +4,7 @@ Turbo Whisper records microphone audio, sends it to a Whisper API endpoint you c
 
 ## Supported versions
 
-Only the latest release on the `main` branch (and the matching AUR / PPA packages) receives security fixes.
+Only the most recent tagged release (the newest `vX.Y.Z` tag on GitHub, which the AUR and PPA packages track) receives security fixes. Older releases are not patched; upgrade to the latest release. The unreleased `main` branch is not a supported version, although fixes land there first.
 
 ## Reporting a vulnerability
 
