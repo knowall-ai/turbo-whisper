@@ -13,8 +13,10 @@ Thanks for helping make Turbo Whisper better. Pull requests from the community a
 ```bash
 git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
-uv sync --extra dev --extra linux   # dev = pytest/black/ruff, linux = evdev typing backend
-# or: python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev,linux]"
+uv sync --extra dev                 # dev = pytest, black, ruff
+# Linux only: add the evdev typing backend as well
+uv sync --extra dev --extra linux
+# pip alternative: python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"  (add ",linux" on Linux)
 uv run turbo-whisper # run the app
 ```
 
