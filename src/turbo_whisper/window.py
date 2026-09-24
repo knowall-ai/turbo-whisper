@@ -141,8 +141,17 @@ class WindowDetector:
         """Get focused window on Windows using Win32 API."""
         try:
             import ctypes
+            from ctypes import wintypes
 
             user32 = ctypes.windll.user32
+            # Explicit prototypes: the default c_int return would truncate a
+            # 64-bit window handle before it is passed back in.
+            user32.GetForegroundWindow.restype = wintypes.HWND
+            user32.GetForegroundWindow.argtypes = []
+            user32.GetWindowTextLengthW.restype = ctypes.c_int
+            user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+            user32.GetWindowTextW.restype = ctypes.c_int
+            user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
             hwnd = user32.GetForegroundWindow()
 
             if not hwnd:
