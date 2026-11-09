@@ -75,3 +75,12 @@ def test_legacy_explicit_gpu_profile_keeps_its_acceleration_choice():
     path.write_text('{"transcription_backend":"whisper_cpp","whisper_cpp_require_gpu":true}')
     loaded = Config.load()
     assert loaded.whisper_cpp_use_gpu and loaded.whisper_cpp_require_gpu
+
+
+def test_legacy_optional_acceleration_is_not_silently_replaced_with_cpu():
+    path = Config.get_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"transcription_backend":"whisper_cpp","whisper_cpp_require_gpu":false}')
+    loaded = Config.load()
+    assert loaded.whisper_cpp_use_gpu
+    assert not loaded.whisper_cpp_require_gpu

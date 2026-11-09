@@ -196,9 +196,12 @@ class Config:
                             migrated.append(entry)
                     data["history"] = migrated
                 known = {item.name for item in fields(cls)}
-                # Preserve an explicitly GPU-only profile created before the CPU
-                # selector existed. Fresh profiles work without a GPU.
-                if "whisper_cpp_use_gpu" not in data and data.get("whisper_cpp_require_gpu"):
+                # Older whisper.cpp profiles always requested acceleration, with
+                # optional CPU fallback. Preserve that choice on upgrade.
+                if "whisper_cpp_use_gpu" not in data and (
+                    data.get("transcription_backend") == "whisper_cpp"
+                    or data.get("whisper_cpp_require_gpu")
+                ):
                     data["whisper_cpp_use_gpu"] = True
                 config = cls(**{key: value for key, value in data.items() if key in known})
                 config._unknown_fields = {

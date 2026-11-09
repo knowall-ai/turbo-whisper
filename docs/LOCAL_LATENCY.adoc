@@ -267,7 +267,12 @@ replacement or download was performed for this check. Memory/CPU capability and
 model choice still determine practical speed. Broad 64-bit OS coverage is a design
 target with interface tests; no claim of a measured percentage of PCs is made.
 
-Portability validation: 126 tests passed, 2 isolated X11 tests passed separately;
+Portability validation: 127 tests passed, 2 isolated X11 tests passed separately;
 lint, formatting, source/wheel build and wheel inspection passed. Native CPU
 inference and the UI CPU/optional-GPU controls were exercised without changing
 the selected model or beam settings.
+
+The expanded upgrade tests also exposed a test-only Qt lifetime issue: closing
+fixtures hid widgets but left controller/signal cycles for later garbage
+collection. Fixture teardown now joins inference workers and destroys Qt objects
+on the GUI thread. No test gate or exception handling was weakened.

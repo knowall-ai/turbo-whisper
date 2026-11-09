@@ -56,10 +56,26 @@ def controller(qapp, monkeypatch):
         session.cancel()
         session.thread.join(timeout=2)
         assert not session.thread.is_alive()
+    view._live_token += 1
+    view._live_session = None
+    qapp.processEvents()
     view.window.close()
     view.window.settings_panel.close()
     view.tray.hide()
     view._waveform_timer.stop()
+    # Closing only hides Qt objects. Destroy them on the GUI thread instead of
+    # leaving controller/signal cycles for GC on a later inference worker.
+    from PyQt6.QtCore import QCoreApplication, QEvent
+
+    for obj in [
+        view.window.settings_panel,
+        view.window,
+        view.tray,
+        view._waveform_timer,
+        view.signals,
+    ]:
+        obj.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 def phrase(controller):
