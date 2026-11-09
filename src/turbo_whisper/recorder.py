@@ -67,6 +67,9 @@ class AudioRecorder:
         self._actual_sample_rate = config.sample_rate
         self.waveform_buffer = deque(maxlen=100)
         self._record_thread = None
+        self.frame_callback = None
+        self.capture_error = None
+        self.captured_frames = 0
 
     def get_input_devices(self) -> list[dict]:
         """Get list of available input devices."""
@@ -105,13 +108,19 @@ class AudioRecorder:
                 pass
         return devices
 
-    def start(self, level_callback=None) -> None:
+    def start(self, level_callback=None, frame_callback=None) -> None:
         """Start recording audio."""
         if self.is_recording:
             return
+        if self._record_thread and self._record_thread.is_alive():
+            raise RuntimeError("The previous microphone session has not stopped")
 
         self.level_callback = level_callback
+        self.frame_callback = frame_callback
+        self.capture_error = None
+        self.captured_frames = 0
         self.frames = []
+        self.waveform_buffer.clear()
         self.is_recording = True
 
         self._actual_sample_rate = self.config.sample_rate
@@ -122,6 +131,8 @@ class AudioRecorder:
                 "--format=s16le",
                 f"--rate={self.config.sample_rate}",
                 f"--channels={self.config.channels}",
+                "--latency-msec=20",
+                "--process-time-msec=20",
             ]
             if self.config.input_device_index is not None:
                 command.append(f"--device={self.config.input_device_index}")
@@ -154,17 +165,23 @@ class AudioRecorder:
 
     def _record_loop(self) -> None:
         """Recording loop."""
-        while self.is_recording and (self.stream or self._process):
+        # Drain the child's pipe to EOF after termination. Checking is_recording
+        # here used to discard all but one of the blocks buffered at stop time.
+        process, stream = self._process, self.stream
+        while process or (self.is_recording and stream):
             try:
-                if self._process:
-                    data = self._process.stdout.read(
-                        self.config.chunk_size * self.config.channels * 2
-                    )
+                if process:
+                    data = process.stdout.read(self.config.chunk_size * self.config.channels * 2)
                 else:
-                    data = self.stream.read(self.config.chunk_size, exception_on_overflow=False)
+                    data = stream.read(self.config.chunk_size, exception_on_overflow=True)
                 if not data:
+                    if self.is_recording and process and isinstance(process.poll(), int):
+                        self.capture_error = "The microphone stopped before recording finished"
                     break
                 self.frames.append(data)
+                self.captured_frames += len(data) // (self.config.channels * 2)
+                if self.frame_callback:
+                    self.frame_callback(data)
                 audio_data = np.frombuffer(data, dtype=np.int16).astype(np.float32)
                 level = np.abs(audio_data).mean() / 32768.0
 
@@ -173,8 +190,8 @@ class AudioRecorder:
                 if self.level_callback:
                     self.level_callback(level, list(self.waveform_buffer))
 
-            except Exception as e:
-                print(f"Recording error: {e}")
+            except Exception:
+                self.capture_error = "Microphone capture failed; the recording may be incomplete"
                 break
 
     def stop(self) -> bytes:
@@ -190,6 +207,8 @@ class AudioRecorder:
                 self._process.wait(timeout=1)
         if self._record_thread:
             self._record_thread.join(timeout=2.0)
+            if self._record_thread.is_alive():
+                raise RuntimeError("The microphone did not stop; the recording may be incomplete")
         if self._process:
             self._process.stdout.close()
             self._process = None
@@ -199,6 +218,8 @@ class AudioRecorder:
             self.stream.close()
             self.stream = None
 
+        if self.capture_error:
+            raise RuntimeError(self.capture_error)
         if not self.frames:
             return b""
         wav_buffer = io.BytesIO()

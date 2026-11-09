@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSlider,
+    QSpinBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -80,7 +81,7 @@ QPushButton:hover { background: #3b3b42;
     }
 QPushButton:pressed { background: #45414e;
     }
-QPushButton:focus, QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus {
+QPushButton:focus, QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus {
     border: 1px solid #c4afff;
     }
 QPushButton#Primary { background: #d1c0fa;
@@ -96,7 +97,7 @@ QPushButton#Quiet { background: transparent;
     }
 QPushButton#Quiet:hover { background: #34343a;
     }
-QLineEdit, QComboBox, QDoubleSpinBox { background: #1e1e22;
+QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox { background: #1e1e22;
     color: #efedf4;
     border: 1px solid #45454d;
     border-radius: 7px;
@@ -331,6 +332,16 @@ def build_windows(view):
     view.paste_checkbox = QCheckBox("Insert transcribed text into the focused app")
     view.paste_checkbox.setChecked(view.config.auto_paste)
     interaction.addWidget(view.paste_checkbox)
+    view.live_checkbox = QCheckBox("Insert local phrases as you speak (pause between phrases)")
+    view.live_checkbox.setChecked(view.config.live_transcription)
+    interaction.addWidget(view.live_checkbox)
+    interaction.addWidget(
+        label(
+            "Live phrases use your local model. Pausing sends a phrase; stopping sends the rest. "
+            "Text already inserted remains if you cancel.",
+            "Muted",
+        )
+    )
     view.clipboard_checkbox = QCheckBox("Copy transcriptions to the clipboard")
     view.clipboard_checkbox.setChecked(view.config.copy_to_clipboard)
     interaction.addWidget(view.clipboard_checkbox)
@@ -338,12 +349,23 @@ def build_windows(view):
     body.addWidget(view.hotkey_status)
     body.addStretch()
 
-    connection, body = page(
-        "Connection", "Use OpenAI or an OpenAI-compatible transcription server."
-    )
+    connection, body = page("Connection", "Transcribe on this computer or use an API service.")
     view.pages.addWidget(connection)
+    selection = card(body, "Transcription")
+    view.backend_combo = QComboBox()
+    view.backend_combo.addItem("API service", "api")
+    view.backend_combo.addItem("Local model", "local")
+    view.backend_combo.addItem("whisper.cpp (Intel / Vulkan GPU)", "whisper_cpp")
+    view.backend_combo.setCurrentIndex(
+        max(0, view.backend_combo.findData(view.config.transcription_backend))
+    )
+    field(selection, "Run transcription with", view.backend_combo)
+    view.api_settings = QWidget()
+    body.addWidget(view.api_settings)
     backend = card(
-        body, "Transcription service", "Audio is sent to the endpoint below only when you dictate."
+        QVBoxLayout(view.api_settings),
+        "API service",
+        "Audio is sent to the endpoint below when you dictate with the API service selected.",
     )
     view.api_url_input = QLineEdit(view.config.api_url)
     field(backend, "API endpoint", view.api_url_input)
@@ -363,8 +385,6 @@ def build_windows(view):
     backend.addLayout(keyrow)
     view.model_input = QLineEdit(view.config.api_model)
     field(backend, "Model", view.model_input)
-    view.language_input = QLineEdit(view.config.language)
-    field(backend, "Language code", view.language_input, "For example en, es, or fr.")
     view.timeout_input = QDoubleSpinBox()
     view.timeout_input.setRange(1, 3600)
     view.timeout_input.setSuffix(" seconds")
@@ -374,6 +394,82 @@ def build_windows(view):
         "Transcription timeout",
         view.timeout_input,
         "Increase this for long recordings on a local server.",
+    )
+    view.local_settings = QWidget()
+    body.addWidget(view.local_settings)
+    local = card(
+        QVBoxLayout(view.local_settings),
+        "Local model",
+        "Audio stays on this computer. An optional local runtime is required; "
+        "see the README for installation. "
+        "The first dictation downloads the model; later runs use the cached copy.",
+    )
+    view.local_model_input = QLineEdit(view.config.local_model)
+    field(
+        local,
+        "Local model name or folder",
+        view.local_model_input,
+        "Start with base or small. A folder must contain a converted faster-whisper model.",
+    )
+    view.local_device_combo = QComboBox()
+    for title, value in [("CPU", "cpu"), ("NVIDIA GPU (CUDA)", "cuda"), ("Automatic", "auto")]:
+        view.local_device_combo.addItem(title, value)
+    view.local_device_combo.setCurrentIndex(
+        max(0, view.local_device_combo.findData(view.config.local_device))
+    )
+    field(local, "Processing device", view.local_device_combo, "Use CPU for Intel and Apple GPUs.")
+    view.local_compute_combo = QComboBox()
+    for value in ["int8", "float32", "float16", "int8_float16", "default"]:
+        view.local_compute_combo.addItem(value, value)
+    view.local_compute_combo.setCurrentIndex(
+        max(0, view.local_compute_combo.findData(view.config.local_compute_type))
+    )
+    field(local, "Precision", view.local_compute_combo, "Use int8 on CPU; float16 on NVIDIA GPU.")
+    view.local_files_checkbox = QCheckBox("Use downloaded models only (no network access)")
+    view.local_files_checkbox.setChecked(view.config.local_files_only)
+    local.addWidget(view.local_files_checkbox)
+
+    view.cpp_settings = QWidget()
+    body.addWidget(view.cpp_settings)
+    cpp = card(
+        QVBoxLayout(view.cpp_settings),
+        "whisper.cpp",
+        "Audio stays on this computer. Use a Vulkan-enabled build for Intel Arc. "
+        "Choose a downloaded ggml model, such as large-v3-turbo. "
+        "Batch dictation reloads the model. Live phrases keep it ready between recordings.",
+    )
+    view.cpp_binary_input = QLineEdit(view.config.whisper_cpp_binary)
+    field(cpp, "whisper-cli executable", view.cpp_binary_input)
+    view.cpp_model_input = QLineEdit(view.config.whisper_cpp_model)
+    field(cpp, "Model file (.bin)", view.cpp_model_input)
+    view.cpp_device_input = QSpinBox()
+    view.cpp_device_input.setRange(0, 64)
+    view.cpp_device_input.setValue(view.config.whisper_cpp_device)
+    field(cpp, "GPU device index", view.cpp_device_input)
+    view.cpp_timeout_input = QDoubleSpinBox()
+    view.cpp_timeout_input.setRange(1, 3600)
+    view.cpp_timeout_input.setSuffix(" seconds")
+    view.cpp_timeout_input.setValue(view.config.whisper_cpp_timeout)
+    field(cpp, "Local processing timeout", view.cpp_timeout_input)
+    view.cpp_require_gpu_checkbox = QCheckBox("Require GPU acceleration (reject CPU fallback)")
+    view.cpp_require_gpu_checkbox.setChecked(view.config.whisper_cpp_require_gpu)
+    cpp.addWidget(view.cpp_require_gpu_checkbox)
+
+    def update_backend():
+        selected = view.backend_combo.currentData()
+        view.api_settings.setVisible(selected == "api")
+        view.local_settings.setVisible(selected == "local")
+        view.cpp_settings.setVisible(selected == "whisper_cpp")
+
+    view.backend_combo.currentIndexChanged.connect(update_backend)
+    update_backend()
+    language = card(body, "Language")
+    view.language_input = QLineEdit(view.config.language)
+    field(
+        language,
+        "Language code",
+        view.language_input,
+        "For example en, es, or fr. Leave blank for automatic detection with a local model.",
     )
     body.addStretch()
 
@@ -440,7 +536,13 @@ def build_windows(view):
     def select_page(index):
         view.pages.setCurrentIndex(index)
         current = view.pages.currentWidget()
-        QTimer.singleShot(0, lambda: current.verticalScrollBar().setValue(0))
+        # A contextless singleShot can outlive a closed page and abort PyQt
+        # when its callback touches the deleted QScrollArea.
+        reset = QTimer(current)
+        reset.setSingleShot(True)
+        reset.timeout.connect(lambda: current.verticalScrollBar().setValue(0))
+        reset.timeout.connect(reset.deleteLater)
+        reset.start(0)
 
     view.navigation.currentRowChanged.connect(select_page)
     view.navigation.setCurrentRow(0)

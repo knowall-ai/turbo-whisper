@@ -33,6 +33,22 @@ def test_new_installs_do_not_send_audio_to_an_unrelated_server():
     config = Config.load()
     assert config.api_url == "https://api.openai.com/v1/audio/transcriptions"
     assert not config.claude_integration
+    assert config.transcription_backend == "api"
+
+
+def test_local_settings_round_trip():
+    config = Config(
+        transcription_backend="local",
+        local_model="/models/whisper",
+        local_files_only=True,
+    )
+    config.save()
+    loaded = Config.load()
+    assert loaded.transcription_backend == "local"
+    assert loaded.local_model == "/models/whisper"
+    assert loaded.local_device == "cpu"
+    assert loaded.local_compute_type == "int8"
+    assert loaded.local_files_only
 
 
 def test_history_deduplicates_and_retains_latest():
@@ -40,3 +56,13 @@ def test_history_deduplicates_and_retains_latest():
     for text in ["first", "second", "first", "third"]:
         config.add_to_history(text)
     assert [item["text"] for item in Config.load().history] == ["third", "first"]
+
+
+def test_explicit_project_config_path(tmp_path, monkeypatch):
+    path = tmp_path / "profile" / "config.json"
+    monkeypatch.setenv("TURBO_WHISPER_CONFIG", str(path))
+    Config(transcription_backend="whisper_cpp", whisper_cpp_model="/models/ggml.bin").save()
+    assert Config.get_config_path() == path
+    loaded = Config.load()
+    assert loaded.whisper_cpp_model == "/models/ggml.bin"
+    assert loaded.whisper_cpp_require_gpu

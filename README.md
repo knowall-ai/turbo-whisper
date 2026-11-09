@@ -62,8 +62,8 @@ On GNOME/KDE Wayland, approve the desktop shortcut dialog. Manual recording rema
 available when no global shortcut backend is supported. If native text insertion
 is unavailable, the app copies the complete result and asks you to paste it.
 
-Turbo Whisper sends recordings to the endpoint you configure. For offline use,
-run an OpenAI-compatible server locally. It does not bundle offline model weights.
+Turbo Whisper can transcribe on this computer with an optional local runtime, or
+send recordings to the API endpoint you configure. It does not bundle model weights.
 The separately installed Superwhisper application has its own offline engine.
 
 ## Features
@@ -71,6 +71,8 @@ The separately installed Superwhisper application has its own offline engine.
 - **Global hotkey** (Ctrl+Shift+Space) to start/stop recording from anywhere
 - **Waveform visualization** - see your audio levels in real-time with an animated orb
 - **OpenAI API compatible** - works with OpenAI Whisper API or self-hosted faster-whisper-server
+- **Local models** - run faster-whisper inside the app, with no API key or server
+- **Intel GPU acceleration** - use whisper.cpp with a Vulkan-enabled build
 - **Multilingual** - supports 99 languages via Whisper
 - **Auto-type** - transcribed text is typed directly into the focused window
 - **Clipboard support** - text is also copied to clipboard
@@ -239,6 +241,17 @@ Create `~/.config/turbo-whisper/config.json` (Linux/macOS) or `%APPDATA%\turbo-w
 
 ```json
 {
+  "transcription_backend": "api",
+  "local_model": "base",
+  "local_device": "cpu",
+  "local_compute_type": "int8",
+  "local_files_only": false,
+  "live_transcription": false,
+  "whisper_cpp_binary": "whisper-cli",
+  "whisper_cpp_model": "",
+  "whisper_cpp_device": 0,
+  "whisper_cpp_timeout": 120.0,
+  "whisper_cpp_require_gpu": true,
   "api_url": "https://api.openai.com/v1/audio/transcriptions",
   "api_key": "sk-your-api-key",
   "hotkey": ["ctrl", "shift", "space"],
@@ -344,6 +357,131 @@ EOF
 **Windows:**
 - Press Win+R, type `shell:startup`, press Enter
 - Create a shortcut to `turbo-whisper` in that folder
+
+## whisper.cpp with Intel GPU acceleration
+
+Choose **Connection → whisper.cpp (Intel / Vulkan GPU)**. Set the executable to
+`whisper-cli` (or its full path), select a downloaded whisper.cpp `ggml-*.bin`
+model file, and save. Keep **Require GPU acceleration** enabled to reject results
+when the runtime falls back to CPU. GPU device index `0` is the default.
+
+This workstation already has a Vulkan-enabled `whisper-cli` declared in
+`system-config/home.nix` and a full `large-v3` model at
+`/archipool/chatterbox/models/whisper.cpp/ggml-large-v3.bin`. Launch the source
+checkout with that model using:
+
+```bash
+./tools/run-intel
+```
+
+The launcher creates an ignored `.intel-config/config.json` profile on its first
+run and selects whisper.cpp with required GPU acceleration. It imports this
+checkout's code using the installed Turbo Whisper runtime when available, otherwise
+it uses `uv run --locked`. On this workstation it reuses the installed runtime and
+weights, without installing packages or changing desktop settings.
+Quit an already running Turbo Whisper instance before using this profile; the
+single-instance launcher otherwise just reopens the existing app.
+To create the profile without launching, use `./tools/run-intel --configure-only`.
+Settings and history then use this profile; recording storage still follows the
+normal application configuration directory.
+
+For a different model on the first launch:
+
+```bash
+TURBO_WHISPER_CPP_MODEL=/path/to/ggml-large-v3-turbo.bin ./tools/run-intel
+```
+
+If the profile already exists, change the model in Connection settings.
+`large-v3-turbo` is a useful speed/accuracy choice; full `large-v3` is also supported.
+This backend reads existing model files and does not download weights.
+
+On another machine, install/build whisper.cpp with Vulkan support following the
+[upstream instructions](https://github.com/ggml-org/whisper.cpp#vulkan-gpu-support).
+The default recorder format (16 kHz, mono, PCM16 WAV) is required. Processing runs
+in a background subprocess, with a separate timeout and private temporary files
+that are removed after completion or failure. Batch mode loads the model for every
+dictation. Live phrases keep a local worker
+resident as described below. A sandbox without `/dev/dri` cannot verify Intel GPU execution.
+
+![whisper.cpp settings](docs/screenshots/whisper-cpp.png)
+
+## Live local phrases
+
+Enable **Dictation → Insert local phrases as you speak**, together with
+**Insert transcribed text into the focused app**. Choose a local backend in
+Connection. Pause briefly between phrases: a roughly 0.6-second quiet interval
+sends the completed phrase while recording continues. Stopping flushes the rest;
+the full combined transcript is saved in History without typing it twice.
+Existing configurations keep the original record-then-transcribe behavior.
+
+For whisper.cpp, live mode uses `whisper-server` from the same installed build as
+`whisper-cli`. The app owns the worker, binds it only to loopback on a private
+route, and keeps the selected model loaded between dictations until quitting.
+No external transcription service or new model is used. First use still includes
+model startup. The optional faster-whisper backend reuses its in-process model.
+
+Continuous speech with no qualifying pause is retained and transcribed at stop;
+this is phrase dictation, so it does not show provisional word-by-word guesses.
+Cancel suppresses pending inference results; text already being inserted cannot
+be retracted. If insertion fails, further insertion stops and the remaining text
+is copied; the full successful transcript remains in History. Inference or capture
+failures are shown as errors. Settings can be changed after dictation finishes.
+
+The recording HUD shows actual captured duration once audio arrives. If a long
+session produces short text, compare that duration with your speaking time and
+use History's copy button for the full transcript (list rows show short previews).
+See [measurements and remaining limits](docs/LOCAL_LATENCY.adoc).
+
+## faster-whisper local models (no server)
+
+From this repository, launch with the optional inference runtime:
+
+```bash
+uv run --with-requirements requirements-local.txt turbo-whisper
+```
+
+Or, in an activated pip virtual environment:
+
+```bash
+pip install -e . -r requirements-local.txt
+turbo-whisper
+```
+
+Open **Connection**, choose **Local model**, and save. Start with model `base`,
+device **CPU**, and precision **int8**. The first dictation downloads the model
+from Hugging Face, so it can take longer. Following dictations reuse the loaded
+model; subsequent launches use the disk cache. For better accuracy, try `small`.
+Keep using the launch command above to include the optional runtime when using uv.
+The desktop app's existing dependency lockfile remains independent of this runtime;
+`requirements-local.txt` pins the engine version, not its transitive dependencies.
+
+Local mode processes recorded audio inside the app and never falls back to an API.
+To forbid model downloads, enable **Use downloaded models only** after the model
+has been cached, or supply a path to an existing converted faster-whisper model
+folder (not a whisper.cpp GGUF file). Leave the language blank for automatic
+detection. The API timeout applies only to API requests, not local inference.
+
+Equivalent local configuration:
+
+```json
+{
+  "transcription_backend": "local",
+  "local_model": "base",
+  "local_device": "cpu",
+  "local_compute_type": "int8",
+  "local_files_only": false,
+  "language": "en"
+}
+```
+
+CPU mode works without GPU drivers, including on Intel Arc and Apple Silicon
+machines. The faster-whisper backend's GPU option uses NVIDIA CUDA; use the
+whisper.cpp backend above for Intel acceleration. NVIDIA users can select `cuda` and `float16` after
+installing the compatible CUDA/cuDNN libraries described in the
+[faster-whisper documentation](https://github.com/SYSTRAN/faster-whisper#gpu).
+Existing configurations continue to use the API unless you select local mode.
+
+![Local model settings](docs/screenshots/local-model.png)
 
 ## Self-Hosting Whisper
 

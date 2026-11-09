@@ -120,3 +120,58 @@ pgrep -af turbo
 # View app logs
 journalctl --user -f | grep -i turbo
 ----
+
+== Local model troubleshooting
+
+* If the local runtime is missing, launch from the repository with
+  `uv run --with-requirements requirements-local.txt turbo-whisper`, or install it
+  inside your pip virtual environment with `pip install -r requirements-local.txt`.
+* If a model cannot load, check the model name/folder and available memory. First
+  use requires internet access unless weights are already present. With downloaded
+  models only enabled, a missing cache produces an error rather than a download.
+* With faster-whisper on Apple Silicon or machines without NVIDIA CUDA, use CPU
+  with int8. On Intel Arc, select the separate whisper.cpp backend for acceleration.
+* If the first dictation is slow, allow time for model download and loading. Start
+  with `base` or `tiny`; API timeout settings do not limit local inference.
+
+== whisper.cpp / Intel Arc
+
+* Use a Vulkan-enabled whisper.cpp build and a whisper.cpp ggml `.bin` model,
+  rather than a faster-whisper model directory or a language-model GGUF file.
+* If GPU initialization is not confirmed, check the Vulkan runtime, selected GPU
+  index, and permissions for `/dev/dri/render*`. A sandbox with no `/dev/dri`
+  cannot use the GPU. The app rejects CPU fallback when Require GPU is selected.
+* GPU selection and initialization are logged by the installed CLI; a compiled
+  `VULKAN=1` flag alone does not confirm GPU usage.
+* If you intentionally want CPU fallback, clear Require GPU. Otherwise leave it
+  enabled so a missing GPU cannot silently produce a slower result.
+* The CLI loads the model for each dictation. Try `large-v3-turbo` to reduce
+  inference latency, or increase Local processing timeout for long recordings.
+* The Intel launcher does not replace an existing profile. Change saved model
+  settings in the app after the first launch. Quit the running instance before
+  switching profiles, because Turbo Whisper allows one instance per user.
+
+== Delayed pickup, short output, and live phrases
+
+* Linux capture now requests a small buffer and drains queued PCM at stop. The HUD
+  shows the actual captured duration. If a minute's recording shows only seconds,
+  check the selected microphone and capture-error message before changing models.
+* History rows and tray notifications are previews. Use History's copy button for
+  the complete result; a shortened preview does not establish transcription loss.
+* Enable live local phrases in Dictation to insert completed phrases before stopping.
+  Brief pauses delimit phrases. Continuous speech without those pauses is retained
+  and processed at stop. A slow model can still accumulate pending audio.
+* Live whisper.cpp needs `whisper-server` from the existing GPU build. It keeps
+  model memory allocated between recordings until app exit. Missing runtime, GPU
+  failure, inference timeout and capture interruption produce visible errors, with
+  no automatic upload to an API. Native capture overflow is no longer suppressed.
+* Cancel suppresses pending results but cannot undo native insertion in progress.
+  On insertion failure, further insertion stops; remaining text is copied and the
+  full successful result is in History. Keep the intended destination focused.
+* The system-installed desktop app remains pinned to its packaged source. To test
+  checkout changes on the Intel workstation, quit any existing instance and use
+  `./tools/run-intel`, then enable live phrases and save. These source changes do
+  not update the system-config package or desktop launcher.
+* See `LOCAL_LATENCY.adoc` for synthetic measurements and the unresolved physical
+  microphone/user-specific short-output reproduction. A smaller/faster model is
+  not a substitute for diagnosing lost capture or delivery.

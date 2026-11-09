@@ -258,3 +258,89 @@ The application uses file locking (`fcntl.flock`) to ensure only one instance ru
 
 * Linux: `$XDG_RUNTIME_DIR/turbo-whisper.lock`
 * Fallback: `/tmp/turbo-whisper.lock`
+
+== Local inference backend
+
+The `transcription_backend` configuration selects `api` (the backwards-compatible
+default) or `local`. `WhisperClient` routes both synchronous and asynchronous calls;
+async local calls run in a worker thread. The recording pipeline already calls the
+synchronous entry point from its background thread, keeping Qt responsive during
+model downloads and inference.
+
+`local.py` lazily imports the optional faster-whisper runtime. It accepts WAV bytes
+in memory, loads a named model or converted model folder, applies voice activity
+detection, and consumes all output segments before returning plain text. One model
+is cached per client and reloaded when model/device/precision/download policy changes.
+Loading and inference are serialized. Local failures never fall back to HTTP.
+
+CPU/int8 is the portable default on Linux, Windows, and macOS. CUDA is an opt-in
+NVIDIA backend; Intel GPU and Metal acceleration are not supported by this engine.
+`local_files_only` prohibits model downloads; it requires cached weights or a local
+converted model folder. Model weights are not distributed with Turbo Whisper.
+The separately installed runtime is pinned in `requirements-local.txt`; the desktop
+dependency lockfile is unchanged. Local inference has no HTTP timeout.
+
+== whisper.cpp and Intel Arc
+
+`transcription_backend: "whisper_cpp"` routes WAV recordings to an installed
+`whisper-cli` subprocess. Vulkan acceleration uses the existing GPU runtime; the
+application neither installs drivers nor changes the host. The CLI receives an
+explicit model path, language, GPU device index, and a temporary JSON output path.
+Default recorder audio is validated as mono 16 kHz PCM16 before starting it.
+
+The subprocess has a bounded `whisper_cpp_timeout`, and a private temporary
+directory is removed on success, invalid output, process error, and timeout.
+Arguments are passed as a list without a shell. Output parsing returns only
+transcription text; runtime logs are not surfaced as user transcripts or errors.
+When `whisper_cpp_require_gpu` is true (default), a GPU initialization log is
+required; a build advertising Vulkan alone is not evidence of GPU execution.
+No API fallback is performed. Batch mode loads models per request.
+
+`TURBO_WHISPER_CONFIG` optionally selects an explicit config file, without changing
+where recordings are stored. `tools/run-intel` uses an ignored project profile,
+initialized with the workstation's existing large-v3 weights. Other installs can
+select their own executable and model in Connection settings. Existing API and
+faster-whisper configurations retain their behavior.
+
+== Local live phrases and capture integrity
+
+`live_transcription` is opt-in and defaults to false. The controller starts capture
+and model preparation independently. `PhraseTranscriber` receives every PCM block,
+uses a conservative quiet interval as an endpoint hint (0.6 s below 0.004 RMS),
+and transcribes complete phrases on one background worker. It never deletes quiet
+audio or splits continuous speech at an arbitrary duration. Stop flushes all remaining
+PCM; capture retains its complete recording separately for the existing audio-history
+policy. A sound quieter than the endpoint hint can still be transcribed at stop.
+
+One inference may be in flight and one pending region is coalesced as more audio
+arrives. There is no queue of duplicate snapshots. Pending audio can still grow if
+the model cannot keep up; no real-time throughput guarantee is made. Phrase insertion
+also runs off Qt, is serialized, honors the existing Claude-ready integration, and
+stops automatic insertion after a failure. Combined successful text is saved once,
+and finalization does not type phrases a second time. Session tokens reject late
+results after cancellation/restart. Native keystrokes already in progress cannot be
+retracted. Settings are disabled during capture/finalization to keep one session's
+model, device and delivery policy consistent.
+
+For whisper.cpp live mode, an owned `whisper-server` child reuses the same selected
+weights and GPU. It binds only to 127.0.0.1 with a random request path; requests ignore
+proxy environment variables and do not follow redirects. GPU initialization must
+still be confirmed. Beam size and best-of are explicitly 5 to match the CLI, since
+server defaults differ. Logs are drained without storing recognized words. Server
+segment whitespace is normalized to the CLI's space-joined dictation format. Model
+settings changes, failures, timeout and application exit close the owned worker;
+memory remains resident between successful sessions. There is no remote fallback.
+The upstream request contract was checked against
+https://github.com/ggml-org/whisper.cpp/blob/master/examples/server/server.cpp[server.cpp]
+and the installed 1.9.5-dev runtime was exercised directly.
+
+Linux capture requests 20 ms PipeWire/Pulse buffering instead of the default buffer.
+On stop the reader drains the terminated child's stdout to EOF, including short
+final blocks. PyAudio overflow and early capture-child exit are errors rather than
+successful truncated recordings. The HUD changes from Starting microphone to actual
+captured duration after blocks arrive; it does not infer speech recognition from
+waveform sensitivity. All speech remains explicitly started/stopped by the user.
+
+The Qt scroll-reset timer is parented to its page so pending navigation cannot access
+a page already destroyed during repeated sessions. Measurements, acceptance criteria,
+regression coverage and unverified surfaces are in `LOCAL_LATENCY.adoc`.

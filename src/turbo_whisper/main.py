@@ -54,6 +54,8 @@ class SignalBridge(QObject):
     update_waveform = pyqtSignal(float, list)
     transcription_complete = pyqtSignal(str)
     transcription_error = pyqtSignal(str)
+    live_complete = pyqtSignal(str, int)
+    live_error = pyqtSignal(str, int)
     show_status = pyqtSignal(str)
 
 
@@ -248,15 +250,46 @@ class RecordingWindow(QWidget):
                 or key in {f"f{i}" for i in range(1, 13)}
             )
 
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        backend = self.backend_combo.currentData()
+        if backend == "api" and (parsed.scheme not in {"http", "https"} or not parsed.netloc):
             self.save_feedback.setText("Enter a valid HTTP or HTTPS endpoint.")
             return
         if not keys or not all(valid_key(key) for key in keys):
             self.save_feedback.setText("Enter a supported shortcut, such as ctrl+alt+w.")
             return
-        if not self.model_input.text().strip():
+        if backend == "api" and not self.model_input.text().strip():
             self.save_feedback.setText("Enter a model name.")
             return
+        if backend == "local" and not self.local_model_input.text().strip():
+            self.save_feedback.setText("Enter a local model name or folder.")
+            return
+        device = self.local_device_combo.currentData()
+        precision = self.local_compute_combo.currentData()
+        if backend == "local" and device == "cpu" and precision in {"float16", "int8_float16"}:
+            self.save_feedback.setText("Use int8, float32, or default precision on CPU.")
+            return
+        if backend == "whisper_cpp":
+            from pathlib import Path
+
+            if not self.cpp_binary_input.text().strip():
+                self.save_feedback.setText("Enter the whisper-cli executable name or path.")
+                return
+            if (
+                not self.cpp_model_input.text().strip()
+                or not Path(self.cpp_model_input.text().strip()).expanduser().is_file()
+            ):
+                self.save_feedback.setText("Choose an existing whisper.cpp model file.")
+                return
+        self.config.transcription_backend = backend
+        self.config.whisper_cpp_binary = self.cpp_binary_input.text().strip()
+        self.config.whisper_cpp_model = self.cpp_model_input.text().strip()
+        self.config.whisper_cpp_device = self.cpp_device_input.value()
+        self.config.whisper_cpp_timeout = self.cpp_timeout_input.value()
+        self.config.whisper_cpp_require_gpu = self.cpp_require_gpu_checkbox.isChecked()
+        self.config.local_model = self.local_model_input.text().strip()
+        self.config.local_device = device
+        self.config.local_compute_type = precision
+        self.config.local_files_only = self.local_files_checkbox.isChecked()
         self.config.api_url = endpoint
         self.config.api_key = self.api_key_input.text()
         self.config.api_model = self.model_input.text().strip()
@@ -265,6 +298,7 @@ class RecordingWindow(QWidget):
         self.config.hotkey = keys
         self.config.push_to_talk = self.hold_checkbox.isChecked()
         self.config.auto_paste = self.paste_checkbox.isChecked()
+        self.config.live_transcription = self.live_checkbox.isChecked()
         self.config.copy_to_clipboard = self.clipboard_checkbox.isChecked()
         self.config.store_recordings = self.recordings_checkbox.isChecked()
         self.config.input_device_index = self.mic_combo.currentData()
@@ -519,6 +553,12 @@ class TurboWhisper:
         self.is_transcribing = False
         self._recording_token = 0
         self._pending_waveform_data = None  # Thread-safe buffer for waveform data
+        self._live_session = None
+        self._live_token = 0
+        self._live_text = []
+        self._live_remainder = []
+        self._live_delivery_lock = threading.Lock()
+        self._completed_live = False
 
         # Connect signals
         self.signals.toggle_recording.connect(self._toggle_recording)
@@ -526,6 +566,8 @@ class TurboWhisper:
         self.signals.focused_window_detected.connect(self._on_focused_window_detected)
         self.signals.transcription_complete.connect(self._on_transcription_complete)
         self.signals.transcription_error.connect(self._on_transcription_error)
+        self.signals.live_complete.connect(self._on_live_complete)
+        self.signals.live_error.connect(self._on_live_error)
         self.signals.show_status.connect(self.window.set_status)
         self.window.cancel_requested.connect(self._cancel_recording)
         self.window.record_requested.connect(self._toggle_recording)
@@ -696,10 +738,18 @@ class TurboWhisper:
         """Start recording audio."""
         if self.is_recording or self.is_transcribing:
             return
+        if self.config.live_transcription and self.config.transcription_backend == "api":
+            self._on_transcription_error("Select a local backend to use live phrases")
+            return
 
         self.is_recording = True
+        self.window.settings_panel.setEnabled(False)
         self._recording_token += 1
         current_token = self._recording_token
+        self._live_token += 1
+        self._live_text = []
+        self._live_remainder = []
+        self._completed_live = False
 
         # Find focused app on background thread to keep hotkey/UI responsive
         threading.Thread(
@@ -714,7 +764,7 @@ class TurboWhisper:
         # Show window (don't steal focus from current app)
         self.window.waveform.set_recording(True)
         self.window.set_recording_hint(recording=True)
-        self.window.set_status("Listening", animate=True)
+        self.window.set_status("Starting microphone", animate=True)
 
         # Hide settings panel if open (it changes window focus behavior)
         if self.window.settings_panel.isVisible():
@@ -730,9 +780,35 @@ class TurboWhisper:
 
         # Start recording
         try:
-            self.recorder.start(level_callback=self._on_audio_level)
+            if self.config.live_transcription:
+                from .live import PhraseTranscriber
+
+                token = self._live_token
+                texts, remainder = self._live_text, self._live_remainder
+                auto_paste = self.config.auto_paste
+                self._live_session = PhraseTranscriber(
+                    self.client,
+                    self.config.sample_rate,
+                    self.config.channels,
+                    lambda text: self._deliver_live_phrase(
+                        text, token, texts, remainder, auto_paste
+                    ),
+                    lambda text: self.signals.live_complete.emit(text, token),
+                    lambda error: self.signals.live_error.emit(error, token),
+                )
+                self._live_session.start()
+                self.recorder.start(
+                    level_callback=self._on_audio_level, frame_callback=self._live_session.feed
+                )
+            else:
+                self.recorder.start(level_callback=self._on_audio_level)
         except Exception as exc:
+            if self._live_session:
+                self._live_session.cancel()
+                self._live_session = None
+                self._live_token += 1
             self.is_recording = False
+            self.window.settings_panel.setEnabled(True)
             self._waveform_timer.stop()
             self.window.waveform.set_recording(False)
             self.window.set_status("Microphone unavailable")
@@ -752,7 +828,7 @@ class TurboWhisper:
     def _on_focused_window_detected(self, name: str, token: int) -> None:
         """Show which app will receive dictation if still recording current session."""
         if self.is_recording and token == self._recording_token:
-            self.window.set_status(f"Listening ({name})", animate=True)
+            self.window.hints_label.setToolTip(f"Dictating into {name}")
 
     def _cancel_recording(self) -> None:
         """Cancel recording without transcribing."""
@@ -760,7 +836,12 @@ class TurboWhisper:
             return
 
         self.is_recording = False
+        self.window.settings_panel.setEnabled(True)
         self._recording_token += 1
+        self._live_token += 1
+        if self._live_session:
+            self._live_session.cancel()
+            self._live_session = None
         self.toggle_action.setText("Start Recording")
         self._update_icons(recording=False)
 
@@ -768,7 +849,11 @@ class TurboWhisper:
         self._waveform_timer.stop()
 
         # Stop recording and discard audio
-        self.recorder.stop()
+        try:
+            self.recorder.stop()
+        except RuntimeError as exc:
+            self._on_transcription_error(str(exc))
+            return
 
         # Hide window
         self.window.waveform.set_recording(False)
@@ -827,6 +912,10 @@ class TurboWhisper:
         # Store for use in transcription callback
         self._pending_audio_filename = audio_filename
 
+        if self._live_session:
+            self._live_session.finish()
+            return
+
         # Transcribe in background thread
         def transcribe():
             try:
@@ -848,11 +937,53 @@ class TurboWhisper:
 
     def _poll_waveform_data(self) -> None:
         """Poll waveform data from recorder thread (called from main thread timer)."""
+        if self.is_recording and isinstance(self.recorder.capture_error, str):
+            self._stop_recording()
+            return
         if self._pending_waveform_data is not None:
             level, waveform_buffer = self._pending_waveform_data
             self.window.waveform.update_waveform(level, waveform_buffer)
             # Update mic level meter (scale 0-1 to 0-100, cap at 100)
             self.window.update_mic_level(level)
+            frames = self.recorder.captured_frames
+            if isinstance(frames, int) and frames:
+                seconds = frames / self.config.sample_rate
+                self.window.set_status(f"Listening · {seconds:.1f} s recorded")
+
+    def _deliver_live_phrase(self, text, token, texts, remainder, auto_paste):
+        # Run insertion on the serialized phrase worker, keeping the Qt thread
+        # available for stop/cancel. Bind lists to this session, never the next one.
+        with self._live_delivery_lock:
+            if token != self._live_token or self._live_session is None:
+                return
+            prefix = " " if texts else ""
+            texts.append(text)
+            if auto_paste:
+                try:
+                    inserted = (
+                        not remainder
+                        and self._wait_for_claude_ready()
+                        and token == self._live_token
+                        and self.typer.type_text(prefix + text)
+                    )
+                except Exception:
+                    inserted = False
+                if not inserted:
+                    remainder.append(text)
+
+    def _on_live_complete(self, text: str, token: int) -> None:
+        if token != self._live_token or self._live_session is None:
+            return
+        self._live_session = None
+        self._completed_live = True
+        self._on_transcription_complete(text)
+
+    def _on_live_error(self, error: str, token: int) -> None:
+        if token != self._live_token or self._live_session is None:
+            return
+        if self.is_recording:
+            self._stop_recording()  # Preserve the complete recording for recovery.
+        self._on_transcription_error(error)
 
     def _is_claude_running(self) -> bool:
         """Check if Claude Code process is running."""
@@ -899,6 +1030,7 @@ class TurboWhisper:
     def _on_transcription_complete(self, text: str) -> None:
         """Handle completed transcription."""
         self.is_transcribing = False
+        self.window.settings_panel.setEnabled(True)
         self.window.hide()
 
         # Get the audio filename that was saved during _stop_recording
@@ -915,7 +1047,20 @@ class TurboWhisper:
                 self.typer.copy_to_clipboard(text)
 
             # Type into focused window (wait for Claude if running)
-            if self.config.auto_paste:
+            if self._completed_live:
+                if self._live_remainder:
+                    self.typer.copy_to_clipboard(" ".join(self._live_remainder))
+                self.tray.showMessage(
+                    "Turbo Whisper",
+                    (
+                        "Remaining text copied — full transcript in History"
+                        if self._live_remainder
+                        else "Live dictation complete — saved in History"
+                    ),
+                    QSystemTrayIcon.MessageIcon.Information,
+                    2000,
+                )
+            elif self.config.auto_paste:
                 if self._wait_for_claude_ready():
                     inserted = self.typer.type_text(text)
                     if not inserted:
@@ -960,6 +1105,11 @@ class TurboWhisper:
     def _on_transcription_error(self, error: str) -> None:
         """Handle transcription error."""
         self.is_transcribing = False
+        self.window.settings_panel.setEnabled(True)
+        if self._live_session:
+            self._live_session.cancel()
+            self._live_session = None
+            self._live_token += 1
         self.window.waveform.set_recording(False)
         self.window.set_status("Transcription failed")
         self.window.save_feedback.setText(error)
@@ -977,6 +1127,11 @@ class TurboWhisper:
             self.hotkey_manager.stop()
         if self.integration_server:
             self.integration_server.stop()
+        if self._live_session:
+            self._live_session.cancel()
+            self._live_session = None
+            self._live_token += 1
+        self.client.close()
         self.recorder.cleanup()
         self.window.settings_panel.close()
         self.app.quit()

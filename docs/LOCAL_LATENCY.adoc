@@ -1,0 +1,248 @@
+= Local dictation responsiveness investigation
+
+== Working brief (2026-11-09)
+
+Problem: the user reports late speech pickup, slow transcription, and output that
+is much shorter than the time spent recording. They clarified that stable phrases
+should be typed into the focused application while speaking. Capture completeness
+therefore takes priority over latency. Existing behavior records until an explicit
+stop and only then transcribes; it has no live transcription path.
+
+Scope: Python 3.10+ / PyQt6 controller, PyAudio or Linux parec capture, optional
+faster-whisper and whisper.cpp backends. This workstation has an Intel Arc Pro B60,
+Vulkan whisper.cpp and existing full large-v3 weights. The saved Intel profile uses
+whisper.cpp, 16 kHz mono PCM16, 1024-frame capture blocks and English. No model or
+service purchase, remote inference, or model replacement is authorized.
+
+Earlier maintenance: fork identity/Wayland hotkeys, cross-platform UI and CI are
+already in the committed history. Local inference/Intel integration is pre-existing
+uncommitted work and must be preserved. A source snapshot including those changes
+is retained under ignored `.latency-bench/baseline`, with SHA-256 manifest and HEAD.
+The installed desktop launcher may still import the earlier packaged source;
+source verification does not constitute workstation deployment.
+
+Initial hypotheses, to test before behavioral changes:
+
+* PipeWire/parec buffering or stop/drain handling loses audio or postpones pickup.
+* The model/backend or its configuration explains short output despite full capture.
+* Waiting until stop, plus loading large-v3 per request, dominates useful-text delay.
+
+Acceptance criteria:
+
+* Full synthetic input reaches inference, including onset, pauses, long speech and
+  tail; capture failures are reported rather than presented as successful short text.
+* Opt-in local live dictation delivers stable phrases during capture; stopping
+  flushes the tail exactly once, with no omission or duplication, and cancel/restart
+  cannot deliver stale text. Existing batch/API behavior stays available.
+* Keep inference serialized and prevent an unbounded processing-job backlog. Never
+  discard unprocessed speech to make latency appear lower.
+* Compare identical recordings and inference settings with an unchanged baseline;
+  retain quality/completeness checks, repeat sessions and confirmation inputs.
+* Existing automated checks remain passing. New deterministic tests enforce audio
+  completeness, phrase ordering/tail delivery, failure and session isolation.
+* No numerical user latency target exists. Report measured delays and uncertainty;
+  do not declare the feature "fast enough" without user acceptance.
+
+Measurement protocol, established before implementation:
+
+* Use public/synthetic non-identifying speech generated locally with existing tools,
+  and a temporary dedicated PipeWire monitor, never the user's microphone or history.
+* Record request-to-first-captured-block (capture readiness), known signal onset to
+  observed onset, first usable typed text from speech onset, final text from speech
+  end/stop, and audio-seconds per processing-second where applicable. A waveform
+  change alone is not speech detection or usable text.
+* Baseline and candidate use the same PCM, rate, model, language, precision, device
+  and decode settings. Separate process/model-cold from resident/warm measurements;
+  filesystem caches are not forcibly dropped. Record background load as a confounder.
+* Use repeated paired runs for timing claims; report n, range, sample SD and SE
+  where estimable. Reserve a different utterance/phrase sequence for confirmation.
+* Keep raw compact timing/count/hash diagnostics locally, without whole transcripts,
+  user audio, secrets or private text. Document deviations and unverified surfaces.
+
+== Findings and decisions
+
+Risk tier: local inference/capture runtime plus Qt UI. No build, dependency-lock,
+authentication, production or system-configuration changes were made. Pre-existing
+local/Intel backend work remains uncommitted and preserved. No new expenditure,
+model acquisition or remote speech processing was used.
+
+=== Diagnosis and correction
+
+* Before correction, three isolated capture probes first returned audio in
+  1.986–2.015 s. Requesting 20, 50 and 100 ms server latency demonstrated that the
+  default buffer caused the delay. At 20 ms, pickup was approximately 0.10 s;
+  larger settings increased signal delay. 20 ms was chosen from those measurements,
+  not as an invented user acceptance target. The 1024-frame/64 ms application block
+  is unchanged. This does not measure a physical microphone waking from suspend.
+* A deterministic blocked-pipe reproduction showed that stop returned only the
+  first of six queued blocks and lost the short final block. The reader now drains
+  to EOF. Early child exit/read errors and PyAudio overflow are visible failures
+  rather than successful short recordings. No VAD threshold or beam reduction was
+  used to make capture appear faster.
+* Original CLI processing of a separate 7.779 s synthetic utterance took 11.823 s on
+  the first process-cold probe (10.114 s model load), then 3.063 and 3.306 s with
+  cached files (1.626 and 1.900 s load). Resident worker probes took 1.272–1.341 s
+  per request (n=3), with identical beam/best-of 5 and all 20 words. These are
+  diagnostic inference-only observations, not the speech-to-editor result below.
+* The original product had no live path. Opt-in complete-phrase delivery now runs
+  while capture continues, using the same local model. Endpoint constants are
+  implementation defaults for finalizing phrases, not claimed speech thresholds
+  or numerical acceptance requirements. Quiet audio is retained; continuous speech
+  is not cut at arbitrary time limits to reduce apparent delay.
+* A confirmation-model substitution (synthetic mountain recognized as mounted)
+  occurred with both native adapters. A speculative word-wrapping adjustment was
+  discarded. Later, the minute workload demonstrated an actual server segment
+  newline/typing mismatch; normalizing segment whitespace to CLI formatting fixed
+  exact editor/history equality without changing recognized words.
+* Expanded repeated-session testing exposed an existing queued Qt scroll reset
+  accessing a destroyed QScrollArea. The test failed before the fix; an owned page
+  timer cancels that callback on deletion. Full checks then passed.
+
+=== End-to-end comparison
+
+The unchanged snapshot includes the pre-existing uncommitted local backends, rather
+than comparing against HEAD where those backends did not exist. An isolated
+PipeWire null sink/monitor plays the same synthetic PCM at real speed. The actual
+recorder, controller, Intel model and xdotool insertion deliver text into a Qt
+editor under Xvfb. No real desktop keystrokes, microphone or user speech are used.
+Audio hashes, individual timing rows, SD and SE are committed as compact numeric
+records in `benchmarks/local-2026-11-09.json`; screenshots and recoverable baseline
+source are retained locally in ignored `.latency-bench/`.
+
+Metrics use monotonic time. First capture is start request to the first recorded
+block. Signal onset is known playback start to the first block above the fixed
+probe level; it is a capture signal measurement, not a recognition/VAD event.
+First usable text requires actual editor contents, not a worker return or an
+insertion command completing. Final delay includes inference, typing and editor
+consumption after explicit stop. Playback completion is a proxy for speech end
+and includes the fixture's small trailing silence. Device warm-up before playback
+is the same 0.2 s in both versions; stop follows playback by 0.15 s.
+
+The short comparison uses a 9.779 s, 20-word, three-phrase workload, n=3 per version:
+one fresh-process session and two repeated sessions. No filesystem or shader-cache
+flush was performed. "Warm" means repeated dictations in one app; the baseline
+still reloads the CLI model every time. GPU tests were run sequentially. The normal
+workstation workload was left running, so these small samples and cache/order
+confounders do not establish population confidence or a general speed guarantee.
+
+[cols="3,3,3",options="header"]
+|===
+|Metric (seconds) |Unchanged baseline |Candidate
+|First captured block, n=3
+|mean 1.987; range 1.983–1.993; SD 0.00590; SE 0.00341
+|mean 0.101; range 0.100–0.103; SD 0.00151; SE 0.00087
+|Signal onset delay, n=3
+|mean 1.783; range 1.781–1.786; SD 0.00301; SE 0.00174
+|mean 0.137; range 0.136–0.138; SD 0.00073; SE 0.00042
+|First usable typed text, warm n=2
+|mean 14.034; range 13.827–14.241; SD 0.29271; SE 0.20698
+|mean 4.530; range 4.524–4.537; SD 0.00910; SE 0.00643
+|Final text after stop, warm n=2
+|mean 4.009; range 3.802–4.216; SD 0.29291; SE 0.20712
+|mean 1.012; range 1.005–1.018; SD 0.00896; SE 0.00634
+|===
+
+The single process-cold short session first delivered usable text at 19.213 s
+baseline versus 7.338 s candidate; n=1 supplies no variability or SE estimate.
+Candidate phrases arrived before stop in all three short runs; baseline text
+arrived after stop. Every short run had zero word errors, correct first/last
+markers, and exact equality between full editor text and history.
+
+Untouched confirmation: a different 9.984 s, 22-word three-phrase recording, n=1
+per version. First text: 13.870 s baseline versus 3.715 s live; final from stop:
+3.668 versus 1.078 s. Both had zero word errors, full marker coverage and exact
+editor/history equality. Live text arrived before stop. No SD/SE is estimable.
+
+Long recording: a 52.928 s, 144-word repeated passage, n=1 baseline and final
+candidate. Captured audio increased from 52.000 to 53.280 s (the latter includes
+startup and trailing silence). Both produced the same normalized 134-word text
+with the same 10-word model omission. The candidate inserted that entire text
+exactly after the segment-whitespace correction. Final delay after stop was
+14.304 s baseline versus 7.954 s candidate. Without a qualifying pause neither
+version produced text before stop; this is an explicit product limitation, not
+an accepted real-time result. These single-run values have no SE estimate.
+
+The small earlier candidate long run with newline loss is retained as evidence,
+but excluded from final insertion success. An initial editor benchmark exited
+before queued X11 events were consumed, producing invalid/stale first-text times;
+those rows are also retained and excluded. The corrected harness waits for actual
+editor delivery. A final lifecycle-only change registers worker exit cleanup
+before model readiness; it does not change capture, decoding, endpoint or typing
+behavior, and is covered separately by a regression test.
+
+=== Verification and resource boundaries
+
+* Baseline suite: 93 passed, 2 skipped. Final suite: 121 passed, 2 skipped. The skips
+  are the explicitly isolated X11 tests; running those under Xvfb separately gives
+  2 passed. New tests enforce queued-PCM/tail preservation, early-exit/overflow
+  errors, repeated captures, quiet/short input, 65 s continuous PCM, ordering,
+  cancellation/restart, inference failure, no duplicate final typing and fallback.
+* A blocked-inference test feeds 21 phrases, verifies exactly one in-flight job plus
+  one coalesced tail, and compares all PCM byte-for-byte. Local preparation keeps
+  existing beam/VAD settings and reuses the cached engine. Resident-worker tests
+  cover GPU rejection, private loopback routing, proxy avoidance, timeout/error/
+  redirect cleanup, model ownership during startup and no transcript logging.
+* Ruff 0.14.3 and Black 25.9.0 checks passed; source archive/wheel build and
+  `tools/check_wheel.py` passed; `git diff --check` passed. UI render inspected.
+  This is local evidence; hosted CI, other OS/hardware and publishing were not run.
+* `uv run --locked --extra dev --extra linux pytest` initially could not build
+  PyAudio because host PortAudio headers were absent. No host packages were added.
+  Verification reused the installed Nix Python/audio/Qt runtime and cached pytest,
+  with uvx for the pinned formatting/lint tools. The model, Vulkan runtime, Xvfb,
+  espeak-ng, ffmpeg and audio tools already existed on the workstation.
+* Observed hardware: Ryzen 9 5900X / 24 logical CPUs, approximately 64 GB RAM,
+  Intel Arc Pro B60. Test runtime: Linux 7.0.0-42, Python 3.13.17, Qt 6.11.2,
+  whisper.cpp 1.9.5-dev, existing large-v3 file, Vulkan device 0, English, beam and
+  best-of 5. No smaller model, precision or language substitution was introduced.
+  Sampling near verification showed 22 GB RAM available and load averages roughly
+  3.1/4.2/4.9; this was not continuous load control. Resident mode retains model
+  RAM/VRAM until quitting. Peak CPU/device memory was not measured, and memory
+  neutrality is not claimed. All benchmark-owned audio modules/workers are cleaned
+  up; the service lifecycle also has deterministic failure/exit tests.
+* No numerical time target was provided. The qualitative live-phrase criterion is
+  met on paused synthetic input. "Fast enough," physical microphone wake-up/clipped
+  initial speech, actual faster-whisper inference, Windows/macOS hardware and native
+  Wayland insertion remain unverified. Existing tests cover their interfaces, not
+  hardware behavior. No user recordings were read or uploaded.
+
+=== Decisions and next diagnostic action
+
+The assumptions that this path was already live and that only inference was slow
+proved wrong. Capture buffering, stop draining and absent live delivery were
+separate problems. Model replacement and reduced decoding quality were unnecessary
+for the measured improvements. The user's exact report of roughly one minute
+becoming a few words is not reproduced: the long synthetic case returned 134 words
+on both adapters. Do not mark that report resolved from these tests.
+
+The next real-voice trial should use the source launcher, the saved intended
+microphone and captured-duration HUD. If captured duration itself is short, use the
+new capture error and device evidence. If capture spans the minute but copied full
+History text is short, an authorized failing local clip is needed to isolate
+recognition/delivery. History and tray previews must not be mistaken for complete
+transcripts. Investigate that evidence before changing the model or designing
+continuous provisional decoding. Continuous no-pause live text would need further
+segmentation/stability work; it is not claimed here. Installation/desktop package
+updates, commits, PR publication and deployment are outside this requested bound.
+
+Reproduce the synthetic check in a prepared project runtime (never on the user's
+real X11 display):
+
+[source,bash]
+----
+TURBO_WHISPER_TEST_X11=1 XDG_SESSION_TYPE=x11 xvfb-run -a \
+  env -u WAYLAND_DISPLAY QT_QPA_PLATFORM=xcb python tools/benchmark_dictation.py \
+  --model /path/to/existing/ggml-large-v3.bin --mode live \
+  --output .latency-bench/recheck --synthesizer /path/to/espeak-ng
+----
+
+Use `--mode batch` with the preserved baseline import path for comparisons;
+`--workload confirmation` and `--workload minute` select the other recordings.
+The harness generates fixtures locally and emits timing/count/hash diagnostics,
+not whole transcripts. It does not install runtime components or download weights.
+
+=== Desktop delivery follow-up
+
+After the investigation, the user explicitly authorized committing/pushing the
+changes, updating the installed desktop application and enabling live phrase
+typing. The workstation installation and profile setup are maintained declaratively
+in system-config; the latency and physical-microphone limitations above still apply.

@@ -38,6 +38,21 @@ class Config:
     api_model: str = "whisper-1"
     api_key: str = ""
 
+    # Local inference is optional; existing installs continue using their API.
+    transcription_backend: str = "api"
+    local_model: str = "base"
+    local_device: str = "cpu"
+    local_compute_type: str = "int8"
+    local_files_only: bool = False
+    live_transcription: bool = False  # Deliver complete local phrases during recording
+
+    # whisper.cpp runs locally using an installed GPU-enabled whisper-cli.
+    whisper_cpp_binary: str = "whisper-cli"
+    whisper_cpp_model: str = ""
+    whisper_cpp_device: int = 0
+    whisper_cpp_timeout: float = 120.0
+    whisper_cpp_require_gpu: bool = True
+
     # Hotkey settings (using pynput key names)
     # Default: F8 on Windows (Alt+Space conflicts with window menu)
     #          Alt+Space on Linux/macOS
@@ -147,6 +162,9 @@ class Config:
     def get_config_path(cls) -> Path:
         """Get the configuration file path."""
         import sys
+
+        if override := os.environ.get("TURBO_WHISPER_CONFIG"):
+            return Path(override).expanduser().resolve()
 
         if sys.platform == "win32":
             # Windows: use APPDATA

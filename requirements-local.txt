@@ -1,0 +1,3 @@
+# Optional inference runtime, loaded only when Local model is selected.
+# Keep it separate from the desktop application's locked dependencies.
+faster-whisper==1.2.1

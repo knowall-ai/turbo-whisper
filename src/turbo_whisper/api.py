@@ -1,5 +1,6 @@
 """OpenAI-compatible transcription client with bounded, configurable timeouts."""
 
+import asyncio
 import math
 
 import httpx
@@ -14,6 +15,45 @@ class WhisperAPIError(Exception):
 class WhisperClient:
     def __init__(self, config: Config):
         self.config = config
+        self._local_client = None
+        self._cpp_client = None
+
+    def _cpp(self):
+        if self._cpp_client is None:
+            from .whisper_cpp import WhisperCppClient
+
+            self._cpp_client = WhisperCppClient(self.config)
+        return self._cpp_client
+
+    def _local(self):
+        if self._local_client is None:
+            from .local import LocalWhisperClient
+
+            self._local_client = LocalWhisperClient(self.config)
+        return self._local_client
+
+    def _validate_backend(self):
+        if self.config.transcription_backend not in {"api", "local", "whisper_cpp"}:
+            raise WhisperAPIError("Choose API, Local model, or whisper.cpp as the backend")
+
+    def prepare_live(self):
+        if self.config.transcription_backend == "whisper_cpp":
+            self._cpp().prepare_live()
+        elif self.config.transcription_backend == "local":
+            self._local().prepare()
+        else:
+            raise WhisperAPIError("Live phrases require a local transcription backend")
+
+    def transcribe_live_sync(self, audio_data: bytes) -> str:
+        if self.config.transcription_backend == "whisper_cpp":
+            return self._cpp().transcribe_live_sync(audio_data)
+        if self.config.transcription_backend == "local":
+            return self._local().transcribe_sync(audio_data)
+        raise WhisperAPIError("Live phrases require a local transcription backend")
+
+    def close(self):
+        if self._cpp_client is not None:
+            self._cpp_client.close()
 
     def _timeout(self) -> httpx.Timeout:
         limit = self.config.transcription_timeout
@@ -65,6 +105,13 @@ class WhisperClient:
         return result["text"].strip()
 
     async def transcribe(self, audio_data: bytes) -> str:
+        self._validate_backend()
+        if not audio_data:
+            raise WhisperAPIError("No audio was recorded")
+        if self.config.transcription_backend == "local":
+            return await asyncio.to_thread(self._local().transcribe_sync, audio_data)
+        if self.config.transcription_backend == "whisper_cpp":
+            return await asyncio.to_thread(self._cpp().transcribe_sync, audio_data)
         try:
             async with httpx.AsyncClient(timeout=self._timeout()) as client:
                 return self._response(
@@ -80,6 +127,13 @@ class WhisperClient:
             ) from exc
 
     def transcribe_sync(self, audio_data: bytes) -> str:
+        self._validate_backend()
+        if not audio_data:
+            raise WhisperAPIError("No audio was recorded")
+        if self.config.transcription_backend == "local":
+            return self._local().transcribe_sync(audio_data)
+        if self.config.transcription_backend == "whisper_cpp":
+            return self._cpp().transcribe_sync(audio_data)
         try:
             with httpx.Client(timeout=self._timeout()) as client:
                 return self._response(client.post(self.config.api_url, **self._request(audio_data)))

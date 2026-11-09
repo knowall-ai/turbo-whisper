@@ -22,5 +22,16 @@
   "history": [],
   "history_max": 20,
   "api_model": "whisper-1",
-  "claude_integration": false
+  "claude_integration": false,
+  "transcription_backend": "api",
+  "local_model": "base",
+  "local_device": "cpu",
+  "local_compute_type": "int8",
+  "local_files_only": false,
+  "live_transcription": false,
+  "whisper_cpp_binary": "whisper-cli",
+  "whisper_cpp_model": "",
+  "whisper_cpp_device": 0,
+  "whisper_cpp_timeout": 120.0,
+  "whisper_cpp_require_gpu": true
 }
