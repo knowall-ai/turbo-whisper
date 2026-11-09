@@ -72,7 +72,7 @@ The separately installed Superwhisper application has its own offline engine.
 - **Waveform visualization** - see your audio levels in real-time with an animated orb
 - **OpenAI API compatible** - works with OpenAI Whisper API or self-hosted faster-whisper-server
 - **Local models** - run faster-whisper inside the app, with no API key or server
-- **Intel GPU acceleration** - use whisper.cpp with a Vulkan-enabled build
+- **Local CPU / GPU inference** - CPU support with optional hardware acceleration
 - **Multilingual** - supports 99 languages via Whisper
 - **Auto-type** - transcribed text is typed directly into the focused window
 - **Clipboard support** - text is also copied to clipboard
@@ -251,7 +251,8 @@ Create `~/.config/turbo-whisper/config.json` (Linux/macOS) or `%APPDATA%\turbo-w
   "whisper_cpp_model": "",
   "whisper_cpp_device": 0,
   "whisper_cpp_timeout": 120.0,
-  "whisper_cpp_require_gpu": true,
+  "whisper_cpp_use_gpu": false,
+  "whisper_cpp_require_gpu": false,
   "api_url": "https://api.openai.com/v1/audio/transcriptions",
   "api_key": "sk-your-api-key",
   "hotkey": ["ctrl", "shift", "space"],
@@ -358,52 +359,40 @@ EOF
 - Press Win+R, type `shell:startup`, press Enter
 - Create a shortcut to `turbo-whisper` in that folder
 
-## whisper.cpp with Intel GPU acceleration
+## whisper.cpp local CPU and optional acceleration
 
-Choose **Connection → whisper.cpp (Intel / Vulkan GPU)**. Set the executable to
-`whisper-cli` (or its full path), select a downloaded whisper.cpp `ggml-*.bin`
-model file, and save. Keep **Require GPU acceleration** enabled to reject results
-when the runtime falls back to CPU. GPU device index `0` is the default.
+Choose **Connection → whisper.cpp (local CPU / GPU)**, set the `whisper-cli`
+executable and select an existing whisper.cpp `ggml-*.bin` model. New profiles
+use CPU inference and do not require graphics drivers or a dedicated GPU. The
+app supports the existing record-then-transcribe and live-phrase workflows on CPU.
 
-This workstation already has a Vulkan-enabled `whisper-cli` declared in
-`system-config/home.nix` and a full `large-v3` model at
-`/archipool/chatterbox/models/whisper.cpp/ggml-large-v3.bin`. Launch the source
-checkout with that model using:
+For source-checkout use with an existing model:
 
 ```bash
-./tools/run-intel
+TURBO_WHISPER_CPP_MODEL=/path/to/ggml-model.bin ./tools/run-local
 ```
 
-The launcher creates an ignored `.intel-config/config.json` profile on its first
-run and selects whisper.cpp with required GPU acceleration. It imports this
-checkout's code using the installed Turbo Whisper runtime when available, otherwise
-it uses `uv run --locked`. On this workstation it reuses the installed runtime and
-weights, without installing packages or changing desktop settings.
-Quit an already running Turbo Whisper instance before using this profile; the
-single-instance launcher otherwise just reopens the existing app.
-To create the profile without launching, use `./tools/run-intel --configure-only`.
-Settings and history then use this profile; recording storage still follows the
-normal application configuration directory.
+The launcher creates an ignored `.local-config/config.json` only when absent and
+preserves saved settings on subsequent runs. `--configure-only` prepares that
+profile without launching. It reuses the installed app runtime when available.
+Quit an existing instance before switching profiles. No weights are downloaded.
 
-For a different model on the first launch:
+**Use GPU acceleration when available** is optional. A compatible runtime can
+accelerate inference; leave **Require GPU acceleration** off to permit CPU fallback.
+Turning GPU use off explicitly selects CPU in both batch and live inference.
+The default does not depend on any GPU vendor. The runtime must match your OS:
+see the [upstream installation and CPU/GPU options](https://github.com/ggml-org/whisper.cpp).
 
-```bash
-TURBO_WHISPER_CPP_MODEL=/path/to/ggml-large-v3-turbo.bin ./tools/run-intel
-```
+This targets common 64-bit Windows, Linux and macOS computers. Compatibility does
+not imply equal speed across machines. Model memory and compute needs matter:
+choose `base` or `small` for a CPU-oriented setup, and evaluate transcription quality
+before changing an existing model. Existing model selections are preserved.
+Cross-platform tests cover interfaces; native hardware testing remains more limited.
+No percentage-of-PC coverage has been measured.
 
-If the profile already exists, change the model in Connection settings.
-`large-v3-turbo` is a useful speed/accuracy choice; full `large-v3` is also supported.
-This backend reads existing model files and does not download weights.
-
-On another machine, install/build whisper.cpp with Vulkan support following the
-[upstream instructions](https://github.com/ggml-org/whisper.cpp#vulkan-gpu-support).
-The default recorder format (16 kHz, mono, PCM16 WAV) is required. Processing runs
-in a background subprocess, with a separate timeout and private temporary files
-that are removed after completion or failure. Batch mode loads the model for every
-dictation. Live phrases keep a local worker
-resident as described below. A sandbox without `/dev/dri` cannot verify Intel GPU execution.
-
-![whisper.cpp settings](docs/screenshots/whisper-cpp.png)
+Audio is mono 16 kHz PCM16 WAV. Batch mode uses private temporary files and a
+bounded subprocess. Live mode keeps one local worker loaded between sessions.
+Existing launcher aliases remain compatible with saved profiles.
 
 ## Live local phrases
 
@@ -474,11 +463,11 @@ Equivalent local configuration:
 }
 ```
 
-CPU mode works without GPU drivers, including on Intel Arc and Apple Silicon
-machines. The faster-whisper backend's GPU option uses NVIDIA CUDA; use the
-whisper.cpp backend above for Intel acceleration. NVIDIA users can select `cuda` and `float16` after
-installing the compatible CUDA/cuDNN libraries described in the
-[faster-whisper documentation](https://github.com/SYSTRAN/faster-whisper#gpu).
+CPU mode works without GPU drivers on common supported desktop platforms. The
+faster-whisper GPU option uses CUDA. The whisper.cpp backend supports CPU and the
+acceleration options provided by its installed build. See the
+[faster-whisper runtime requirements](https://github.com/SYSTRAN/faster-whisper#gpu)
+for compatible accelerated installations.
 Existing configurations continue to use the API unless you select local mode.
 
 ![Local model settings](docs/screenshots/local-model.png)

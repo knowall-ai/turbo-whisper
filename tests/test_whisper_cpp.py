@@ -30,7 +30,12 @@ def cpp(monkeypatch, tmp_path):
 
     model = tmp_path / "model with spaces.bin"
     model.write_bytes(b"synthetic model")
-    config = Config(transcription_backend="whisper_cpp", whisper_cpp_model=str(model))
+    config = Config(
+        transcription_backend="whisper_cpp",
+        whisper_cpp_model=str(model),
+        whisper_cpp_use_gpu=True,
+        whisper_cpp_require_gpu=True,
+    )
     monkeypatch.setattr(whisper_cpp.shutil, "which", lambda value: "/synthetic/whisper-cli")
 
     def run(command, **kwargs):
@@ -86,6 +91,30 @@ def test_cpp_cpu_fallback_can_be_explicitly_allowed(cpp):
 
     runner.side_effect = cpu
     assert WhisperClient(config).transcribe_sync(wav()) == "Hello, world."
+
+
+def test_cpu_mode_disables_gpu_and_needs_no_gpu_initialization(cpp):
+    config, runner = cpp
+    config.whisper_cpp_use_gpu = False
+    config.whisper_cpp_require_gpu = False
+    original = runner.side_effect
+
+    def cpu(command, **kwargs):
+        result = original(command, **kwargs)
+        result.stderr = "CPU backend initialized"
+        return result
+
+    runner.side_effect = cpu
+    assert WhisperClient(config).transcribe_sync(wav()) == "Hello, world."
+    assert "-ng" in runner.call_args.args[0]
+
+
+def test_inconsistent_gpu_requirement_is_rejected_before_starting(cpp):
+    config, runner = cpp
+    config.whisper_cpp_use_gpu = False
+    with pytest.raises(WhisperAPIError, match="Enable GPU acceleration"):
+        WhisperClient(config).transcribe_sync(wav())
+    runner.assert_not_called()
 
 
 def test_cpp_timeout_is_handled_and_audio_is_removed(cpp):
@@ -183,7 +212,7 @@ def test_native_cli_process_contract_and_cleanup(tmp_path):
     assert WhisperClient(config).transcribe_sync(wav()) == "A native process result."
 
 
-@pytest.mark.skipif(os.name == "nt", reason="Intel workstation launcher is a Bash script")
+@pytest.mark.skipif(os.name == "nt", reason="Local launcher is a Bash script")
 def test_intel_profile_setup_preserves_saved_settings(tmp_path):
     profile = tmp_path / "profile" / "config.json"
     model = tmp_path / "ggml-test.bin"
@@ -198,7 +227,8 @@ def test_intel_profile_setup_preserves_saved_settings(tmp_path):
     saved = profile.read_bytes()
     config = json.loads(saved)
     assert config["transcription_backend"] == "whisper_cpp"
-    assert config["whisper_cpp_require_gpu"]
+    assert not config["whisper_cpp_require_gpu"]
+    assert not config["whisper_cpp_use_gpu"]
     assert config["whisper_cpp_model"] == str(model)
     environment["TURBO_WHISPER_CPP_MODEL"] = str(tmp_path / "absent-model.bin")
     subprocess.run(["bash", str(launcher), "--configure-only"], env=environment, check=True)

@@ -122,7 +122,18 @@ def test_cpp_settings_save_and_hide_other_backends(window, qapp, tmp_path):
     loaded = Config.load()
     assert loaded.transcription_backend == "whisper_cpp"
     assert loaded.whisper_cpp_model == str(model)
-    assert loaded.whisper_cpp_require_gpu
+    assert not loaded.whisper_cpp_require_gpu
+    assert not loaded.whisper_cpp_use_gpu
+
+
+def test_cpu_and_optional_acceleration_controls_are_consistent(window):
+    assert not window.cpp_use_gpu_checkbox.isChecked()
+    assert not window.cpp_require_gpu_checkbox.isEnabled()
+    window.cpp_use_gpu_checkbox.setChecked(True)
+    window.cpp_require_gpu_checkbox.setChecked(True)
+    assert window.cpp_require_gpu_checkbox.isEnabled()
+    window.cpp_use_gpu_checkbox.setChecked(False)
+    assert not window.cpp_require_gpu_checkbox.isChecked()
 
 
 def test_cpp_missing_model_does_not_overwrite_settings(window):

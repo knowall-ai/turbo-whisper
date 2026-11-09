@@ -285,6 +285,7 @@ class RecordingWindow(QWidget):
         self.config.whisper_cpp_model = self.cpp_model_input.text().strip()
         self.config.whisper_cpp_device = self.cpp_device_input.value()
         self.config.whisper_cpp_timeout = self.cpp_timeout_input.value()
+        self.config.whisper_cpp_use_gpu = self.cpp_use_gpu_checkbox.isChecked()
         self.config.whisper_cpp_require_gpu = self.cpp_require_gpu_checkbox.isChecked()
         self.config.local_model = self.local_model_input.text().strip()
         self.config.local_device = device

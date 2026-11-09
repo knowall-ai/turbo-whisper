@@ -33,5 +33,6 @@
   "whisper_cpp_model": "",
   "whisper_cpp_device": 0,
   "whisper_cpp_timeout": 120.0,
-  "whisper_cpp_require_gpu": true
+  "whisper_cpp_use_gpu": false,
+  "whisper_cpp_require_gpu": false
 }

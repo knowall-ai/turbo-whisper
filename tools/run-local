@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Local dictation profile: CPU by default, with optional acceleration in settings.
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+export TURBO_WHISPER_CONFIG="${TURBO_WHISPER_CONFIG:-$PWD/.local-config/config.json}"
+python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+profile = Path(os.environ["TURBO_WHISPER_CONFIG"]).expanduser()
+if not profile.exists():
+    model = Path(os.environ.get("TURBO_WHISPER_CPP_MODEL", "")).expanduser()
+    if not model.is_file():
+        raise SystemExit("Set TURBO_WHISPER_CPP_MODEL to a downloaded whisper.cpp .bin model.")
+    profile.parent.mkdir(parents=True, exist_ok=True)
+    with profile.open("x") as output:
+        json.dump({
+            "transcription_backend": "whisper_cpp",
+            "whisper_cpp_binary": "whisper-cli",
+            "whisper_cpp_model": str(model.resolve()),
+            "whisper_cpp_device": 0,
+            "whisper_cpp_timeout": 120,
+            "whisper_cpp_use_gpu": False,
+            "whisper_cpp_require_gpu": False,
+            "live_transcription": True,
+            "sample_rate": 16000,
+            "channels": 1,
+            "language": "en",
+        }, output, indent=2)
+        output.write("\n")
+    profile.chmod(0o600)
+PY
+if [[ "${1:-}" == "--configure-only" ]]; then
+    exit 0
+fi
+if command -v turbo-whisper >/dev/null 2>&1; then
+    # Reuse the installed desktop runtime, but import this checkout's code first.
+    export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"
+    exec turbo-whisper "$@"
+fi
+exec uv run --locked turbo-whisper "$@"

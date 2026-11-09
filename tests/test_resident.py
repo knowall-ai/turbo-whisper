@@ -75,6 +75,20 @@ def test_ready_cpu_worker_cannot_silently_replace_required_gpu(native):
     assert not Path(spawn.call_args.kwargs["cwd"]).exists()
 
 
+def test_live_cpu_worker_uses_no_gpu_and_preserves_full_transcript(native):
+    process, spawn, http, _ = native
+    process.stderr = io.BytesIO(b"CPU backend initialized\n")
+    worker = resident.ResidentWhisperCpp(
+        "whisper-server", Path("model.bin"), 0, False, 0.5, use_gpu=False
+    )
+    try:
+        assert "-ng" in spawn.call_args.args[0]
+        assert worker.transcribe(b"synthetic-wav", "en") == "Complete native result."
+        http.post.assert_called_once()
+    finally:
+        worker.close()
+
+
 @pytest.mark.parametrize("failure", ["timeout", "redirect", "malformed", "error"])
 def test_failed_request_closes_worker_without_echoing_audio_or_native_details(native, failure):
     process, _, http, _ = native

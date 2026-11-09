@@ -9,13 +9,13 @@ therefore takes priority over latency. Existing behavior records until an explic
 stop and only then transcribes; it has no live transcription path.
 
 Scope: Python 3.10+ / PyQt6 controller, PyAudio or Linux parec capture, optional
-faster-whisper and whisper.cpp backends. This workstation has an Intel Arc Pro B60,
-Vulkan whisper.cpp and existing full large-v3 weights. The saved Intel profile uses
+faster-whisper and whisper.cpp backends. This workstation has an Vulkan-capable desktop GPU,
+Vulkan whisper.cpp and existing full large-v3 weights. The saved local profile uses
 whisper.cpp, 16 kHz mono PCM16, 1024-frame capture blocks and English. No model or
 service purchase, remote inference, or model replacement is authorized.
 
 Earlier maintenance: fork identity/Wayland hotkeys, cross-platform UI and CI are
-already in the committed history. Local inference/Intel integration is pre-existing
+already in the committed history. Local inference/local integration is pre-existing
 uncommitted work and must be preserved. A source snapshot including those changes
 is retained under ignored `.latency-bench/baseline`, with SHA-256 manifest and HEAD.
 The installed desktop launcher may still import the earlier packaged source;
@@ -103,7 +103,7 @@ model acquisition or remote speech processing was used.
 The unchanged snapshot includes the pre-existing uncommitted local backends, rather
 than comparing against HEAD where those backends did not exist. An isolated
 PipeWire null sink/monitor plays the same synthetic PCM at real speed. The actual
-recorder, controller, Intel model and xdotool insertion deliver text into a Qt
+recorder, controller, local model and xdotool insertion deliver text into a Qt
 editor under Xvfb. No real desktop keystrokes, microphone or user speech are used.
 Audio hashes, individual timing rows, SD and SE are committed as compact numeric
 records in `benchmarks/local-2026-11-09.json`; screenshots and recoverable baseline
@@ -191,7 +191,7 @@ behavior, and is covered separately by a regression test.
   with uvx for the pinned formatting/lint tools. The model, Vulkan runtime, Xvfb,
   espeak-ng, ffmpeg and audio tools already existed on the workstation.
 * Observed hardware: Ryzen 9 5900X / 24 logical CPUs, approximately 64 GB RAM,
-  Intel Arc Pro B60. Test runtime: Linux 7.0.0-42, Python 3.13.17, Qt 6.11.2,
+  Vulkan-capable desktop GPU. Test runtime: Linux 7.0.0-42, Python 3.13.17, Qt 6.11.2,
   whisper.cpp 1.9.5-dev, existing large-v3 file, Vulkan device 0, English, beam and
   best-of 5. No smaller model, precision or language substitution was introduced.
   Sampling near verification showed 22 GB RAM available and load averages roughly
@@ -246,3 +246,28 @@ After the investigation, the user explicitly authorized committing/pushing the
 changes, updating the installed desktop application and enabling live phrase
 typing. The workstation installation and profile setup are maintained declaratively
 in system-config; the latency and physical-microphone limitations above still apply.
+
+=== Hardware-neutral delivery follow-up
+
+The user requested broad PC compatibility and hardware-neutral presentation.
+Fresh whisper.cpp profiles now explicitly use CPU in batch and live modes, with
+optional GPU acceleration. Legacy explicit acceleration choices migrate safely.
+The UI, default configuration, generic launcher and setup documentation describe
+CPU/optional acceleration without a vendor requirement. Saved workstation model
+selection and acceleration preference remain available. The earlier latency table
+measures accelerated operation; it is not a promise of CPU latency or market coverage.
+
+A native CPU-only live-worker check used the same existing model, 16 kHz recording,
+language and beam/best-of settings: all 20 reference words and both end markers were
+preserved, with GPU inference uninitialized. There was one run (no estimable SE):
+startup 11.835 s and inference 12.167 s for 7.779 s audio. This establishes CPU
+functionality, not responsive full-size-model performance on typical PCs. Smaller
+existing model options are appropriate to evaluate on constrained CPUs; no model
+replacement or download was performed for this check. Memory/CPU capability and
+model choice still determine practical speed. Broad 64-bit OS coverage is a design
+target with interface tests; no claim of a measured percentage of PCs is made.
+
+Portability validation: 126 tests passed, 2 isolated X11 tests passed separately;
+lint, formatting, source/wheel build and wheel inspection passed. Native CPU
+inference and the UI CPU/optional-GPU controls were exercised without changing
+the selected model or beam settings.

@@ -15,7 +15,7 @@ from .api import WhisperAPIError
 
 
 class ResidentWhisperCpp:
-    def __init__(self, binary, model, device, require_gpu, timeout):
+    def __init__(self, binary, model, device, require_gpu, timeout, use_gpu=True):
         self.timeout = timeout
         self._process = None
         self._directory = tempfile.TemporaryDirectory(prefix="turbo-whisper-worker-")
@@ -53,7 +53,8 @@ class ResidentWhisperCpp:
                     "5",
                     "-nt",
                     "-sns",
-                ],
+                ]
+                + ([] if use_gpu else ["-ng"]),
                 cwd=self._directory.name,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,

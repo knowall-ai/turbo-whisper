@@ -65,4 +65,13 @@ def test_explicit_project_config_path(tmp_path, monkeypatch):
     assert Config.get_config_path() == path
     loaded = Config.load()
     assert loaded.whisper_cpp_model == "/models/ggml.bin"
-    assert loaded.whisper_cpp_require_gpu
+    assert not loaded.whisper_cpp_require_gpu
+    assert not loaded.whisper_cpp_use_gpu
+
+
+def test_legacy_explicit_gpu_profile_keeps_its_acceleration_choice():
+    path = Config.get_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"transcription_backend":"whisper_cpp","whisper_cpp_require_gpu":true}')
+    loaded = Config.load()
+    assert loaded.whisper_cpp_use_gpu and loaded.whisper_cpp_require_gpu

@@ -1,6 +1,6 @@
 """Synthetic, local speech-to-editor benchmark. Run only inside isolated Xvfb.
 
-Requires existing espeak-ng, ffmpeg, paplay, pactl, xdotool and GPU/model runtime.
+Requires existing espeak-ng, ffmpeg, paplay, pactl, xdotool and local model runtime.
 Never reads user recordings, sends audio remotely, or prints whole transcripts.
 """
 
@@ -122,6 +122,8 @@ def run(args):
         transcription_backend="whisper_cpp",
         whisper_cpp_model=str(args.model.resolve()),
         whisper_cpp_timeout=120,
+        whisper_cpp_use_gpu=args.device == "gpu",
+        whisper_cpp_require_gpu=args.device == "gpu",
         auto_paste=True,
         copy_to_clipboard=False,
         store_recordings=False,
@@ -238,6 +240,7 @@ def run(args):
             row = {
                 "run": index,
                 "mode": args.mode,
+                "execution_device": args.device,
                 "workload": args.workload,
                 "model_state": "process-cold" if index == 0 else "repeated-session",
                 "audio_sha256": hashlib.sha256(data).hexdigest(),
@@ -282,6 +285,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--mode", choices=["batch", "live"], required=True)
+    parser.add_argument("--device", choices=["cpu", "gpu"], default="cpu")
     parser.add_argument("--workload", choices=CORPUS, default="tuning")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--output", type=Path, required=True)

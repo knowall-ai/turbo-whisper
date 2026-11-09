@@ -1,7 +1,7 @@
 {
   "date": "2026-11-09",
   "platform": "Linux x86_64; Python 3.13.17; Qt 6.11.2; isolated Xvfb",
-  "hardware": "Ryzen 9 5900X, 24 logical CPUs, 64 GB installed RAM, Intel Arc Pro B60",
+  "hardware": "Ryzen 9 5900X, 24 logical CPUs, 64 GB installed RAM, Vulkan-capable desktop GPU",
   "engine": "whisper.cpp 1.9.5-dev, existing full large-v3 ggml weights, Vulkan device 0, beam/best-of 5, language en",
   "format": "16 kHz mono PCM16; 1024-frame reads; synthetic espeak-ng at 155 words/min; identical WAV hashes per comparison",
   "baseline_manifest_sha256": "ccddf42ef4b2058a4c69fd13c8621f9fca22cb155f05fa365ee01bc8d3ee0adc",

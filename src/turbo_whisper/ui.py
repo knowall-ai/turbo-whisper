@@ -355,7 +355,7 @@ def build_windows(view):
     view.backend_combo = QComboBox()
     view.backend_combo.addItem("API service", "api")
     view.backend_combo.addItem("Local model", "local")
-    view.backend_combo.addItem("whisper.cpp (Intel / Vulkan GPU)", "whisper_cpp")
+    view.backend_combo.addItem("whisper.cpp (local CPU / GPU)", "whisper_cpp")
     view.backend_combo.setCurrentIndex(
         max(0, view.backend_combo.findData(view.config.transcription_backend))
     )
@@ -417,7 +417,7 @@ def build_windows(view):
     view.local_device_combo.setCurrentIndex(
         max(0, view.local_device_combo.findData(view.config.local_device))
     )
-    field(local, "Processing device", view.local_device_combo, "Use CPU for Intel and Apple GPUs.")
+    field(local, "Processing device", view.local_device_combo, "CPU works without GPU drivers.")
     view.local_compute_combo = QComboBox()
     for value in ["int8", "float32", "float16", "int8_float16", "default"]:
         view.local_compute_combo.addItem(value, value)
@@ -434,8 +434,8 @@ def build_windows(view):
     cpp = card(
         QVBoxLayout(view.cpp_settings),
         "whisper.cpp",
-        "Audio stays on this computer. Use a Vulkan-enabled build for Intel Arc. "
-        "Choose a downloaded ggml model, such as large-v3-turbo. "
+        "Audio stays on this computer. CPU inference works without a dedicated GPU. "
+        "Choose a downloaded ggml model; base or small fits a CPU-oriented setup. "
         "Batch dictation reloads the model. Live phrases keep it ready between recordings.",
     )
     view.cpp_binary_input = QLineEdit(view.config.whisper_cpp_binary)
@@ -451,9 +451,22 @@ def build_windows(view):
     view.cpp_timeout_input.setSuffix(" seconds")
     view.cpp_timeout_input.setValue(view.config.whisper_cpp_timeout)
     field(cpp, "Local processing timeout", view.cpp_timeout_input)
+    view.cpp_use_gpu_checkbox = QCheckBox("Use GPU acceleration when available")
+    view.cpp_use_gpu_checkbox.setChecked(view.config.whisper_cpp_use_gpu)
+    cpp.addWidget(view.cpp_use_gpu_checkbox)
     view.cpp_require_gpu_checkbox = QCheckBox("Require GPU acceleration (reject CPU fallback)")
     view.cpp_require_gpu_checkbox.setChecked(view.config.whisper_cpp_require_gpu)
     cpp.addWidget(view.cpp_require_gpu_checkbox)
+
+    def update_acceleration():
+        enabled = view.cpp_use_gpu_checkbox.isChecked()
+        view.cpp_device_input.setEnabled(enabled)
+        view.cpp_require_gpu_checkbox.setEnabled(enabled)
+        if not enabled:
+            view.cpp_require_gpu_checkbox.setChecked(False)
+
+    view.cpp_use_gpu_checkbox.toggled.connect(update_acceleration)
+    update_acceleration()
 
     def update_backend():
         selected = view.backend_combo.currentData()

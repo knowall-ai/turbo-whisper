@@ -1,4 +1,4 @@
-"""Offline whisper.cpp subprocess adapter, including Intel Arc through Vulkan."""
+"""Offline whisper.cpp subprocess adapter with CPU and optional GPU inference."""
 
 import io
 import json
@@ -55,7 +55,7 @@ class WhisperCppClient:
         binary = shutil.which(str(Path(self.config.whisper_cpp_binary).expanduser()))
         if binary is None:
             raise WhisperAPIError(
-                "whisper-cli was not found. Install a GPU-enabled whisper.cpp build."
+                "whisper-cli was not found. Install whisper.cpp for your operating system."
             )
         model = Path(self.config.whisper_cpp_model).expanduser()
         if not self.config.whisper_cpp_model.strip() or not model.is_file():
@@ -71,6 +71,8 @@ class WhisperCppClient:
         device = self.config.whisper_cpp_device
         if isinstance(device, bool) or not isinstance(device, int) or device < 0:
             raise WhisperAPIError("whisper.cpp GPU device must be a non-negative integer")
+        if self.config.whisper_cpp_require_gpu and not self.config.whisper_cpp_use_gpu:
+            raise WhisperAPIError("Enable GPU acceleration or clear Require GPU acceleration")
         return binary, model, timeout, device
 
     def _transcribe_cli(self, audio_data, binary, model, timeout, device):
@@ -94,6 +96,8 @@ class WhisperCppClient:
                 "-nt",
                 "-sns",
             ]
+            if not self.config.whisper_cpp_use_gpu:
+                command.append("-ng")
             try:
                 result = subprocess.run(
                     command,
@@ -117,12 +121,12 @@ class WhisperCppClient:
                 r"whisper_backend_init_gpu:\s+using\s+\S+\s+backend", result.stderr
             ):
                 raise WhisperAPIError(
-                    "whisper.cpp did not confirm GPU initialization. Check the Vulkan build, "
-                    "GPU drivers, device index, and access to /dev/dri. CPU fallback was rejected."
+                    "whisper.cpp did not confirm GPU initialization. Check your runtime and "
+                    "drivers, or clear Require GPU acceleration. CPU fallback was rejected."
                 )
             if result.returncode:
                 raise WhisperAPIError(
-                    "whisper.cpp failed. Check model compatibility and available GPU memory."
+                    "whisper.cpp failed. Check model compatibility and available memory."
                 )
             try:
                 output = json.loads(output_path.with_suffix(".json").read_text(encoding="utf-8"))
@@ -147,7 +151,7 @@ class WhisperCppClient:
             server = str(server) if server.is_file() else shutil.which("whisper-server")
             if not server:
                 raise WhisperAPIError(
-                    "Live whisper.cpp needs whisper-server from the same GPU-enabled build "
+                    "Live whisper.cpp needs whisper-server from the same build "
                     "as whisper-cli. Disable live phrases to use the CLI alone."
                 )
             stat = model.stat()
@@ -157,6 +161,7 @@ class WhisperCppClient:
                 stat.st_size,
                 stat.st_mtime_ns,
                 device,
+                self.config.whisper_cpp_use_gpu,
                 self.config.whisper_cpp_require_gpu,
                 timeout,
             )
@@ -169,6 +174,7 @@ class WhisperCppClient:
                         device,
                         self.config.whisper_cpp_require_gpu,
                         timeout,
+                        use_gpu=self.config.whisper_cpp_use_gpu,
                     )
                 except OSError as exc:
                     raise WhisperAPIError("Could not start the local whisper.cpp worker") from exc

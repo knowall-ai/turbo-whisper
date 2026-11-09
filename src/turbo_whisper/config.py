@@ -46,12 +46,13 @@ class Config:
     local_files_only: bool = False
     live_transcription: bool = False  # Deliver complete local phrases during recording
 
-    # whisper.cpp runs locally using an installed GPU-enabled whisper-cli.
+    # whisper.cpp supports CPU inference and optional GPU acceleration.
     whisper_cpp_binary: str = "whisper-cli"
     whisper_cpp_model: str = ""
     whisper_cpp_device: int = 0
     whisper_cpp_timeout: float = 120.0
-    whisper_cpp_require_gpu: bool = True
+    whisper_cpp_use_gpu: bool = False
+    whisper_cpp_require_gpu: bool = False
 
     # Hotkey settings (using pynput key names)
     # Default: F8 on Windows (Alt+Space conflicts with window menu)
@@ -195,6 +196,10 @@ class Config:
                             migrated.append(entry)
                     data["history"] = migrated
                 known = {item.name for item in fields(cls)}
+                # Preserve an explicitly GPU-only profile created before the CPU
+                # selector existed. Fresh profiles work without a GPU.
+                if "whisper_cpp_use_gpu" not in data and data.get("whisper_cpp_require_gpu"):
+                    data["whisper_cpp_use_gpu"] = True
                 config = cls(**{key: value for key, value in data.items() if key in known})
                 config._unknown_fields = {
                     key: value for key, value in data.items() if key not in known

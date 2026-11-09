@@ -274,13 +274,13 @@ is cached per client and reloaded when model/device/precision/download policy ch
 Loading and inference are serialized. Local failures never fall back to HTTP.
 
 CPU/int8 is the portable default on Linux, Windows, and macOS. CUDA is an opt-in
-NVIDIA backend; Intel GPU and Metal acceleration are not supported by this engine.
+NVIDIA backend; GPU and Metal acceleration are not supported by this engine.
 `local_files_only` prohibits model downloads; it requires cached weights or a local
 converted model folder. Model weights are not distributed with Turbo Whisper.
 The separately installed runtime is pinned in `requirements-local.txt`; the desktop
 dependency lockfile is unchanged. Local inference has no HTTP timeout.
 
-== whisper.cpp and Intel Arc
+== whisper.cpp CPU / GPU
 
 `transcription_backend: "whisper_cpp"` routes WAV recordings to an installed
 `whisper-cli` subprocess. Vulkan acceleration uses the existing GPU runtime; the
@@ -292,12 +292,12 @@ The subprocess has a bounded `whisper_cpp_timeout`, and a private temporary
 directory is removed on success, invalid output, process error, and timeout.
 Arguments are passed as a list without a shell. Output parsing returns only
 transcription text; runtime logs are not surfaced as user transcripts or errors.
-When `whisper_cpp_require_gpu` is true (default), a GPU initialization log is
+When `whisper_cpp_require_gpu` is explicitly enabled, a GPU initialization log is
 required; a build advertising Vulkan alone is not evidence of GPU execution.
 No API fallback is performed. Batch mode loads models per request.
 
 `TURBO_WHISPER_CONFIG` optionally selects an explicit config file, without changing
-where recordings are stored. `tools/run-intel` uses an ignored project profile,
+where recordings are stored. `tools/run-local` uses an ignored project profile,
 initialized with the workstation's existing large-v3 weights. Other installs can
 select their own executable and model in Connection settings. Existing API and
 faster-whisper configurations retain their behavior.
@@ -344,3 +344,21 @@ waveform sensitivity. All speech remains explicitly started/stopped by the user.
 The Qt scroll-reset timer is parented to its page so pending navigation cannot access
 a page already destroyed during repeated sessions. Measurements, acceptance criteria,
 regression coverage and unverified surfaces are in `LOCAL_LATENCY.adoc`.
+
+
+== Portable local defaults
+
+New whisper.cpp profiles set `whisper_cpp_use_gpu: false` and
+`whisper_cpp_require_gpu: false`. Both batch CLI and resident worker receive `-ng`
+in CPU mode. Optional acceleration sets GPU use true; the runtime may fall back to
+CPU unless the user explicitly requires acceleration. Existing explicit GPU-only
+profiles migrate their acceleration choice instead of silently switching devices.
+The UI disables incompatible strict-GPU controls when CPU mode is selected.
+
+The supported design target is common 64-bit Windows, Linux and macOS machines,
+using CPU inference with an appropriate local model. GPU backends depend on the
+installed runtime and are optional. CPU support does not promise identical speed
+or model memory budgets on every computer. Percentage-of-PC coverage has not been
+measured. Platform interfaces remain in the cross-platform test matrix; actual
+native CPU and optional-GPU inference were checked locally. Model, language,
+beam size and audio completeness are unchanged when switching devices.
