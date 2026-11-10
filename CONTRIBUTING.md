@@ -45,7 +45,7 @@ See `CLAUDE.md` for the module layout, how to kill stray instances, and the `sg 
 
 Please do not open public issues for vulnerabilities. See [SECURITY.md](SECURITY.md).
 
-## Maintained fork verification
+## Verification
 
 Run `uv run pytest -q`, `uv run ruff check src tests tools`,
 `uv run black --check src tests tools`, `uv build`, and

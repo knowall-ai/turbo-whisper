@@ -9,7 +9,7 @@ therefore takes priority over latency. Existing behavior records until an explic
 stop and only then transcribes; it has no live transcription path.
 
 Scope: Python 3.10+ / PyQt6 controller, PyAudio or Linux parec capture, optional
-faster-whisper and whisper.cpp backends. This workstation has an Vulkan-capable desktop GPU,
+faster-whisper and whisper.cpp backends. This workstation has a Vulkan-capable desktop GPU,
 Vulkan whisper.cpp and existing full large-v3 weights. The saved local profile uses
 whisper.cpp, 16 kHz mono PCM16, 1024-frame capture blocks and English. No model or
 service purchase, remote inference, or model replacement is authorized.
@@ -63,7 +63,7 @@ Measurement protocol, established before implementation:
 
 Risk tier: local inference/capture runtime plus Qt UI. No build, dependency-lock,
 authentication, production or system-configuration changes were made. Pre-existing
-local/Intel backend work remains uncommitted and preserved. No new expenditure,
+local backend work remains uncommitted and preserved. No new expenditure,
 model acquisition or remote speech processing was used.
 
 === Diagnosis and correction

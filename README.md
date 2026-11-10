@@ -6,7 +6,7 @@
   </picture>
 </p>
 
-[![CI](https://github.com/CameronWeller/turbo-whisper/actions/workflows/ci.yml/badge.svg)](https://github.com/CameronWeller/turbo-whisper/actions/workflows/ci.yml)
+[![CI](https://github.com/knowall-ai/turbo-whisper/actions/workflows/ci.yml/badge.svg)](https://github.com/knowall-ai/turbo-whisper/actions/workflows/ci.yml)
 
 Turbo Whisper is a **free, open source** voice dictation and transcription app for Linux, macOS, and Windows. A SuperWhisper alternative with a beautiful GUI for real-time speech to text (STT). Supports **99 languages** via OpenAI Whisper. Perfect for accessibility, RSI, and hands-free typing.
 
@@ -20,19 +20,6 @@ Turbo Whisper is a **free, open source** voice dictation and transcription app f
 
 [Screencast_20260122_152835.webm](https://github.com/user-attachments/assets/0d53b4d5-377c-49bb-9463-24cdfdc02946)
 
-## Actively maintained fork
-
-This fork, maintained by [Cameron Weller](https://github.com/CameronWeller), is
-**actively maintained and improved**, with a focus on Linux desktop reliability,
-source builds, and usability. Report issues and propose improvements at
-[CameronWeller/turbo-whisper](https://github.com/CameronWeller/turbo-whisper).
-
-Fork maintenance started on 2026-10-29. This initial fork preserves upstream's
-application behavior; runtime fixes and improvements will be documented in commits.
-The original project is [KnowAll AI's Turbo Whisper](https://github.com/knowall-ai/turbo-whisper).
-Its authorship and MIT license are preserved. Upstream's PPA and AUR instructions
-below install upstream builds; build this fork from source to use this fork.
-
 ## A calmer desktop experience
 
 A compact waveform appears while you dictate. A separate, resizable window keeps
@@ -44,12 +31,12 @@ clear controls inspired by Superwhisper. This remains an independent MIT project
 ![Compact recording waveform](docs/screenshots/recording.png)
 
 The [upstream integration ledger](docs/UPSTREAM_PR_INTEGRATION.md) records every
-open upstream PR reviewed for this fork, author credit, improvements and validation.
+upstream PR reviewed for this integration, author credit, improvements and validation.
 
-Build the maintained fork:
+Build from source:
 
 ```bash
-git clone https://github.com/CameronWeller/turbo-whisper.git
+git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
 # Ubuntu build prerequisite: sudo apt install portaudio19-dev
 uv sync --locked --extra dev
@@ -69,7 +56,7 @@ The separately installed Superwhisper application has its own offline engine.
 ## Features
 
 - **Global hotkey** (Ctrl+Shift+Space) to start/stop recording from anywhere
-- **Waveform visualization** - see your audio levels in real-time with an animated orb
+- **Waveform visualization** - see your audio levels in a compact recording waveform
 - **OpenAI API compatible** - works with OpenAI Whisper API or self-hosted faster-whisper-server
 - **Local models** - run faster-whisper inside the app, with no API key or server
 - **Local CPU / GPU inference** - CPU support with optional hardware acceleration
@@ -168,7 +155,7 @@ paru -S turbo-whisper
 sudo apt install python3-pyaudio portaudio19-dev xdotool xclip
 
 # Clone and install
-git clone https://github.com/CameronWeller/turbo-whisper.git
+git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
 python3 -m venv .venv
 source .venv/bin/activate
@@ -182,7 +169,7 @@ pip install -e .
 
 ```bash
 sudo dnf install python3-pyaudio portaudio-devel xdotool xclip
-git clone https://github.com/CameronWeller/turbo-whisper.git
+git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
 python3 -m venv .venv
 source .venv/bin/activate
@@ -196,7 +183,7 @@ pip install -e .
 
 ```bash
 sudo pacman -S python-pyaudio portaudio xdotool xclip
-git clone https://github.com/CameronWeller/turbo-whisper.git
+git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
 python3 -m venv .venv
 source .venv/bin/activate
@@ -212,7 +199,7 @@ pip install -e .
 brew install portaudio
 
 # Clone and install
-git clone https://github.com/CameronWeller/turbo-whisper.git
+git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
 python3 -m venv .venv
 source .venv/bin/activate
@@ -223,7 +210,7 @@ pip install -e .
 
 ```powershell
 # Clone the repository
-git clone https://github.com/CameronWeller/turbo-whisper.git
+git clone https://github.com/knowall-ai/turbo-whisper.git
 cd turbo-whisper
 
 # Create virtual environment

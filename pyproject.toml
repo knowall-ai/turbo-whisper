@@ -55,9 +55,9 @@ dev = [
 turbo-whisper = "turbo_whisper.main:main"
 
 [project.urls]
-Homepage = "https://github.com/CameronWeller/turbo-whisper"
-Repository = "https://github.com/CameronWeller/turbo-whisper"
-Issues = "https://github.com/CameronWeller/turbo-whisper/issues"
+Homepage = "https://github.com/knowall-ai/turbo-whisper"
+Repository = "https://github.com/knowall-ai/turbo-whisper"
+Issues = "https://github.com/knowall-ai/turbo-whisper/issues"
 
 [build-system]
 requires = ["hatchling"]

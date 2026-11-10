@@ -2,7 +2,7 @@
 
 Scope: all nine open PRs (including the draft) targeting `knowall-ai/turbo-whisper`
 when this integration started. Original authorship is retained in the cherry-picked
-commits. This fork does not close, approve, or merge anything in the upstream repository.
+commits. This integration does not close, approve, or merge the original PRs.
 
 | Upstream PR | Reviewed head | Integration and improvements |
 | --- | --- | --- |
@@ -45,6 +45,8 @@ paid transcription API or host keyboard injection are needed for tests.
 Automated mocks and Xvfb establish the tested behavior, not end-to-end physical
 hotkey/microphone behavior on every desktop. Portal permission dialogs, actual
 Windows/macOS audio/input permissions, AUR/DEB publishing and paid cloud API calls
-are separate from CI. There is no built-in offline ASR engine in Turbo Whisper;
-a local OpenAI-compatible server is required for offline use. Superwhisper is a
+are separate from CI. The later local-inference additions provide optional faster-whisper and whisper.cpp
+runtimes, including live local phrases. See `LOCAL_LATENCY.adoc` for measured
+responsiveness and `SESSION_LIFECYCLE.adoc` for rapid-toggle and finalization limits.
+Model weights and optional inference runtimes are not bundled. Superwhisper is a
 separate application with its own offline models.
