@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSlider,
@@ -81,7 +82,8 @@ QPushButton:hover { background: #3b3b42;
     }
 QPushButton:pressed { background: #45414e;
     }
-QPushButton:focus, QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus {
+QPushButton:focus, QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus,
+QSpinBox:focus, QPlainTextEdit:focus {
     border: 1px solid #c4afff;
     }
 QPushButton#Primary { background: #d1c0fa;
@@ -103,6 +105,13 @@ QLineEdit, QComboBox, QDoubleSpinBox, QSpinBox { background: #1e1e22;
     border-radius: 7px;
     padding: 9px 11px;
     min-height: 18px;
+    selection-background-color: #675481;
+    }
+QPlainTextEdit { background: #1e1e22;
+    color: #efedf4;
+    border: 1px solid #45454d;
+    border-radius: 7px;
+    padding: 10px;
     selection-background-color: #675481;
     }
 QComboBox::drop-down { border: none;
@@ -293,7 +302,7 @@ def build_windows(view):
     view.navigation = QListWidget()
     view.navigation.setObjectName("Navigation")
     view.navigation.setAccessibleName("Settings sections")
-    view.navigation.addItems(["Dictation", "Connection", "Audio", "History"])
+    view.navigation.addItems(["Dictation", "Connection", "Audio", "History", "Review"])
     side.addWidget(view.navigation, 1)
     side.addWidget(label(f"Open source · {__version__}", "Muted"))
     shell.addWidget(sidebar)
@@ -345,6 +354,35 @@ def build_windows(view):
     view.clipboard_checkbox = QCheckBox("Copy transcriptions to the clipboard")
     view.clipboard_checkbox.setChecked(view.config.copy_to_clipboard)
     interaction.addWidget(view.clipboard_checkbox)
+    writer = card(
+        body,
+        "LibreOffice Writer",
+        "Send live phrases directly to the active Writer document. "
+        "After stopping, polish only this dictation. Unfinished words stay visible as "
+        "provisional text with a Writer comment and an editable Review entry. "
+        "While enabled, Writer's active document is the destination, "
+        "even if another app has focus.",
+    )
+    view.writer_checkbox = QCheckBox("Dictate into Writer and polish after stopping")
+    view.writer_checkbox.setChecked(view.config.writer_polish)
+    view.paste_checkbox.setEnabled(not view.config.writer_polish)
+    view.writer_checkbox.toggled.connect(
+        lambda enabled: view.paste_checkbox.setEnabled(not enabled)
+    )
+    writer.addWidget(view.writer_checkbox)
+    view.polish_url_input = QLineEdit(view.config.polish_url)
+    field(
+        writer,
+        "Local correction endpoint",
+        view.polish_url_input,
+        "A local OpenAI-compatible text model is required. Only loopback HTTP is accepted; "
+        "there is no remote correction fallback.",
+    )
+    view.polish_model_input = QLineEdit(view.config.polish_model)
+    field(writer, "Local correction model", view.polish_model_input)
+    view.open_writer_btn = QPushButton("Open a new Writer document")
+    view.open_writer_btn.clicked.connect(view.open_writer_requested.emit)
+    writer.addWidget(view.open_writer_btn)
     view.hotkey_status = label("Global shortcuts follow your desktop's permissions.", "Muted")
     body.addWidget(view.hotkey_status)
     body.addStretch()
@@ -532,6 +570,43 @@ def build_windows(view):
     view.history_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
     view._refresh_history()
     body.addWidget(view.history_list, 1)
+
+    review, body = page("Review", "Complete provisional sentences and review local corrections.")
+    body.setSpacing(10)
+    view.pages.addWidget(review)
+    view.review_list = QListWidget()
+    view.review_list.setAccessibleName("Dictation results for review")
+    view.review_list.setMaximumHeight(70)
+    body.addWidget(view.review_list)
+    view.review_feedback = label("Writer dictations will appear here after stopping.", "Muted")
+    body.addWidget(view.review_feedback)
+    view.review_original = QPlainTextEdit()
+    view.review_original.setReadOnly(True)
+    view.review_original.setMaximumHeight(75)
+    field(body, "Original recognized words", view.review_original)
+    view.review_text = QPlainTextEdit()
+    view.review_text.setMinimumHeight(110)
+    view.review_text.setMaximumHeight(170)
+    field(body, "Reviewed text — finish an unfinished sentence here", view.review_text)
+    buttons = QHBoxLayout()
+    view.review_apply_btn = QPushButton("Apply reviewed text to Writer")
+    view.review_apply_btn.setObjectName("Primary")
+    view.review_apply_btn.clicked.connect(view._request_review_apply)
+    buttons.addWidget(view.review_apply_btn)
+    copy_review = QPushButton("Copy reviewed text")
+    copy_review.clicked.connect(lambda: view._copy_to_clipboard(view.review_text.toPlainText()))
+    buttons.addWidget(copy_review)
+    body.addLayout(buttons)
+    body.addWidget(
+        label(
+            "Apply replaces only this dictation's unchanged Writer range. "
+            "It never completes your thought for you. After restarting the app, "
+            "use Copy for older entries; old documents are not retargeted.",
+            "Muted",
+        )
+    )
+    view.review_list.currentRowChanged.connect(view._select_review)
+    view._refresh_reviews()
 
     footer = QHBoxLayout()
     footer.setContentsMargins(30, 15, 30, 18)

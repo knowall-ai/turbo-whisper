@@ -61,6 +61,7 @@ def controller(qapp, monkeypatch):
         assert not session.is_alive()
     view._work_queue.shutdown()
     view._work_queue.thread.join(timeout=2)
+    view.writer.close()
     view._live_token += 1
     view._live_session = None
     qapp.processEvents()
@@ -347,3 +348,116 @@ def test_queue_limit_is_visible_and_does_not_capture_unserviceable_audio(control
     controller.recorder.start.assert_not_called()
     assert "queue full" in controller.window.status_label.text().lower()
     controller._sessions.clear()
+
+
+def setup_writer(controller, monkeypatch, result):
+    from concurrent.futures import Future
+
+    from turbo_whisper.polish import LocalPolisher
+
+    controller.config.writer_polish = True
+    controller.config.polish_model = "local-test"
+    binding = Future()
+    binding.set_result({})
+    controller.writer = Mock()
+    controller.writer.begin.return_value = binding
+    polish = Mock(return_value=result)
+    monkeypatch.setattr(LocalPolisher, "polish", polish)
+    return polish
+
+
+def test_writer_inserts_live_then_polishes_full_session_and_holds_tail(
+    controller, qapp, monkeypatch
+):
+    from turbo_whisper.polish import PolishResult
+
+    raw = "She go to work. Because the train was delayed."
+    final = "She goes to work. Because the train was delayed."
+    polish = setup_writer(
+        controller,
+        monkeypatch,
+        PolishResult(
+            final,
+            "incomplete",
+            "Unfinished sentence — provisional in Writer",
+            "Because the train was delayed.",
+        ),
+    )
+    controller.client.transcribe_live_sync.side_effect = [
+        "She go to work.",
+        "Because the train was delayed.",
+    ]
+    controller._start_recording()
+    phrase(controller)
+    wait(qapp, lambda: controller.writer.call.called)
+    assert controller.is_recording
+    assert not polish.called
+    assert controller.writer.call.call_args.args == ("append",)
+    feed = controller.recorder.start.call_args.kwargs["frame_callback"]
+    feed(struct.pack("<h", 4000) * 1600)
+    controller._stop_recording()
+    wait(qapp, lambda: not controller.is_transcribing)
+    polish.assert_called_once_with(raw, "en")
+    operations = [call.args[0] for call in controller.writer.call.call_args_list]
+    assert operations == ["append", "append", "replace"]
+    assert controller.writer.call.call_args.kwargs["text"] == final
+    assert "provisional" in controller.writer.call.call_args.kwargs["message"]
+    entry = controller.config.history[0]
+    assert entry["text"] == final
+    assert entry["dictation_review"]["source_text"] == raw
+    assert entry["dictation_review"]["incomplete_tail"] == "Because the train was delayed."
+    assert controller.window.review_list.count() == 1
+    controller.typer.type_text.assert_not_called()
+
+    # Completing/reviewing edits only the same range, once. Original words remain
+    # available for comparison, and the existing history entry is updated.
+    reviewed = "She goes to work because the train was delayed."
+    controller.window.review_text.setPlainText(reviewed)
+    controller.window._request_review_apply()
+    wait(qapp, lambda: entry["dictation_review"]["status"] == "reviewed")
+    assert len(controller.config.history) == 1
+    assert entry["text"] == reviewed
+    assert entry["dictation_review"]["source_text"] == raw
+    assert controller.writer.call.call_args.kwargs["text"] == reviewed
+    assert controller.writer.call.call_args.kwargs["id"] == entry["dictation_review"]["writer_id"]
+
+
+def test_writer_conflict_retains_original_and_suggestion_for_review(controller, qapp, monkeypatch):
+    from turbo_whisper.polish import PolishResult
+    from turbo_whisper.writer import WriterError
+
+    setup_writer(controller, monkeypatch, PolishResult("First thought!", "polished", "Polished"))
+
+    def call(operation, **arguments):
+        if operation == "replace":
+            raise WriterError("Dictated text was edited in Writer; automatic replacement stopped")
+        return {}
+
+    controller.writer.call.side_effect = call
+    controller._start_recording()
+    phrase(controller)
+    controller._stop_recording()
+    wait(qapp, lambda: not controller.is_transcribing)
+    entry = controller.config.history[0]
+    assert entry["text"] == "First thought."
+    assert entry["dictation_review"]["status"] == "review"
+    assert entry["dictation_review"]["proposed_text"] == "First thought!"
+    assert "edited in Writer" in controller.window.review_feedback.text()
+    controller.typer.type_text.assert_not_called()
+
+
+def test_unavailable_correction_marks_writer_text_provisional_without_retyping(
+    controller, qapp, monkeypatch
+):
+    from turbo_whisper.polish import PolishResult
+
+    setup_writer(
+        controller, monkeypatch, PolishResult("First thought.", "review", "Correction unavailable")
+    )
+    controller._start_recording()
+    phrase(controller)
+    controller._stop_recording()
+    wait(qapp, lambda: not controller.is_transcribing)
+    assert [call.args[0] for call in controller.writer.call.call_args_list] == ["append", "mark"]
+    assert controller.config.history[0]["dictation_review"]["status"] == "review"
+    controller.typer.type_text.assert_not_called()

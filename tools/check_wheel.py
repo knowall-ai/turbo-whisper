@@ -11,8 +11,8 @@ with zipfile.ZipFile(wheel) as archive:
     metadata = email.message_from_bytes(archive.read(metadata_name))
     assert metadata["Name"] == "turbo-whisper"
     assert metadata["Version"] == "1.1.0"
-    assert "turbo_whisper/ui.py" in names
-    assert "turbo_whisper/window.py" in names
+    for module in ("ui", "window", "sessions", "polish", "writer", "writer_helper"):
+        assert f"turbo_whisper/{module}.py" in names
     for name in names:
         if name.endswith(".py"):
             compile(archive.read(name), name, "exec")

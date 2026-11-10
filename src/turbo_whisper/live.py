@@ -109,7 +109,11 @@ class PhraseTranscriber:
                     del self._pending[:length]
                     self._boundary = 0
                     finished = self._finished
-                if pcm:
+                # After an endpoint, an exactly-zero final tail contains no
+                # speech. Re-inferencing it can hallucinate an extra word.
+                # The recorder still retains it; never filter low-volume PCM.
+                zero_tail = finished and self._text and not any(pcm)
+                if pcm and not zero_tail:
                     text = self.client.transcribe_live_sync(self._wav(pcm)).strip()
                     with self._condition:
                         if self._cancelled:

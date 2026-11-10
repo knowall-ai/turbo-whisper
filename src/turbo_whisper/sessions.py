@@ -19,6 +19,9 @@ class DictationSession:
     audio_filename: str | None = None
     stopped: bool = False
     cancelled: bool = False
+    writer_id: str | None = None
+    writer_binding: Future | None = None
+    review: dict | None = None
 
     def cancel(self):
         self.cancelled = True

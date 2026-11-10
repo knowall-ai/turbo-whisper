@@ -27,6 +27,7 @@ class HistoryEntry(TypedDict, total=False):
     text: str
     timestamp: str  # ISO format
     audio_file: str  # Filename (not full path) of WAV recording
+    dictation_review: dict  # Original/proposed result and private runtime Writer binding
 
 
 @dataclass
@@ -45,6 +46,11 @@ class Config:
     local_compute_type: str = "int8"
     local_files_only: bool = False
     live_transcription: bool = False  # Deliver complete local phrases during recording
+    writer_polish: bool = False  # Optional tracked Writer delivery and local finalization
+    polish_url: str = "http://127.0.0.1:8080/v1/chat/completions"
+    polish_model: str = ""
+    writer_python: str = ""  # Empty: find a local Python with LibreOffice UNO support
+    writer_binary: str = ""  # Empty: find LibreOffice/soffice
 
     # whisper.cpp supports CPU inference and optional GPU acceleration.
     whisper_cpp_binary: str = "whisper-cli"
@@ -110,7 +116,7 @@ class Config:
         recordings_dir.mkdir(parents=True, exist_ok=True)
         return recordings_dir
 
-    def add_to_history(self, text: str, audio_file: str | None = None) -> None:
+    def add_to_history(self, text: str, audio_file: str | None = None, review=None) -> None:
         """Add a transcription to history.
 
         Args:
@@ -121,7 +127,7 @@ class Config:
             # Remove if already exists (move to top) and delete old audio
             for i, entry in enumerate(self.history):
                 entry_text = entry["text"] if isinstance(entry, dict) else entry
-                if entry_text == text:
+                if review is None and entry_text == text:
                     # Delete old audio file if it exists
                     old_audio = entry.get("audio_file") if isinstance(entry, dict) else None
                     if old_audio:
@@ -137,6 +143,8 @@ class Config:
             }
             if audio_file:
                 entry["audio_file"] = audio_file
+            if review is not None:
+                entry["dictation_review"] = review
             self.history.insert(0, entry)
             # Trim to max size and clean up old recordings
             self._cleanup_old_recordings()

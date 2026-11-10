@@ -137,3 +137,21 @@ def test_inference_failure_cannot_be_presented_as_success_or_leak_native_details
     join(worker)
     assert phrases == completed == []
     assert errors == ["Local live transcription failed"]
+
+
+@pytest.mark.parametrize("tail_level,expected_calls", [(0, 1), (1, 2), (50, 2)])
+def test_final_digital_silence_does_not_hallucinate_but_faint_tail_is_retained(
+    tail_level, expected_calls
+):
+    worker, inputs, _, completed, errors, delivered = session()
+    worker.feed(pcm(5000, 0.3))
+    worker.feed(pcm(0, 0.65))
+    assert delivered.wait(1)
+    worker.feed(pcm(tail_level, 0.1))
+    worker.finish()
+    join(worker)
+    assert len(inputs) == expected_calls
+    assert completed == ["Phrase 1." if tail_level == 0 else "Phrase 1. Phrase 2."]
+    if tail_level:
+        assert inputs[-1] == pcm(tail_level, 0.1)
+    assert not errors

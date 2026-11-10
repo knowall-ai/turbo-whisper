@@ -234,6 +234,11 @@ Create `~/.config/turbo-whisper/config.json` (Linux/macOS) or `%APPDATA%\turbo-w
   "local_compute_type": "int8",
   "local_files_only": false,
   "live_transcription": false,
+  "writer_polish": false,
+  "polish_url": "http://127.0.0.1:8080/v1/chat/completions",
+  "polish_model": "",
+  "writer_python": "",
+  "writer_binary": "",
   "whisper_cpp_binary": "whisper-cli",
   "whisper_cpp_model": "",
   "whisper_cpp_device": 0,
@@ -413,9 +418,46 @@ are processed and inserted in order; the app reports when its 20-session queue i
 full. A tap that ends before audio arrives leaves the recorder ready for the next
 start. Cancel affects the active recording. See the
 [session lifecycle evidence and finalization limitations](docs/SESSION_LIFECYCLE.adoc).
-Live phrases currently receive speech-recognizer punctuation; grammar polishing,
-held incomplete sentences and automatic replacement in a document editor are not
-implemented.
+Live phrases receive speech-recognizer punctuation. Optional Writer mode adds
+local final polishing and provisional-sentence review as described below.
+
+## Polishing and provisional sentences in LibreOffice Writer
+
+Enable **Dictation → Dictate into Writer and polish after stopping**, select an
+existing local text model and its loopback chat-completions endpoint, then save.
+Use **Open a new Writer document**, place the Writer caret without selecting text,
+and dictate normally. Writer mode targets Writer's active document, including when
+another app has focus; disable it to return to general focused-app typing.
+
+Phrases appear while you speak. Explicit stop triggers grammar/punctuation cleanup
+of the entire current dictation. Only its unchanged tracked Writer range is
+replaced. This mode uses LibreOffice's document API, without simulated keystrokes.
+Existing text outside that range stays intact. Changed/closed ranges and mixed
+formatting require review rather than an unsafe replacement.
+
+An unfinished final sentence stays visible, word for word, with a provisional
+Writer comment. Open **Review**, finish or edit the result, then choose **Apply
+reviewed text to Writer**. Original recognized words stay available for comparison.
+If correction fails or proposes content changes, the original remains and the
+suggestion is held for review. Never infer completeness from a period alone.
+
+Requirements: LibreOffice Writer, a Python interpreter with its UNO module, and
+an already running local text model supporting OpenAI-style structured chat
+responses. No model, paid service or external correction endpoint is acquired.
+On Ubuntu/Debian, UNO support is provided by `libreoffice-writer` and `python3-uno`.
+The app checks common Windows/macOS/Linux installation paths; custom installations
+can set `writer_python` and `writer_binary` in the configuration. Linux native
+integration is tested; Windows/macOS UNO installations remain unverified.
+
+Automatic polishing currently supports English and conservative agreement,
+articles, capitalization and punctuation. Content-word rewrites, altered names,
+numbers, negation, tense, symbols or omitted words are held for review. Model
+classification is fallible; this is not a universal grammar/completeness guarantee.
+Existing History retention applies. After restarting Turbo Whisper, old review
+entries remain readable/copyable; they cannot automatically retarget an old document.
+See [the behavior and verification record](docs/SESSION_LIFECYCLE.adoc).
+
+![Provisional sentence review](docs/screenshots/review.png)
 
 ## faster-whisper local models (no server)
 

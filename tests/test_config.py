@@ -34,6 +34,7 @@ def test_new_installs_do_not_send_audio_to_an_unrelated_server():
     assert config.api_url == "https://api.openai.com/v1/audio/transcriptions"
     assert not config.claude_integration
     assert config.transcription_backend == "api"
+    assert not config.writer_polish
 
 
 def test_local_settings_round_trip():
@@ -84,3 +85,32 @@ def test_legacy_optional_acceleration_is_not_silently_replaced_with_cpu():
     loaded = Config.load()
     assert loaded.whisper_cpp_use_gpu
     assert not loaded.whisper_cpp_require_gpu
+
+
+def test_review_entries_keep_distinct_sessions_and_original_words_after_reload():
+    config = Config(
+        writer_polish=True,
+        polish_url="http://127.0.0.1:8080/v1/chat/completions",
+        polish_model="local-test",
+    )
+    for identifier in ["first", "second"]:
+        config.add_to_history(
+            "Because the train was delayed.",
+            review={
+                "writer_id": identifier,
+                "status": "incomplete",
+                "source_text": "Because the train was delayed.",
+                "message": "Provisional in Writer",
+                "incomplete_tail": "Because the train was delayed.",
+            },
+        )
+    loaded = Config.load()
+    assert loaded.writer_polish and loaded.polish_model == "local-test"
+    assert len(loaded.history) == 2
+    assert [entry["dictation_review"]["writer_id"] for entry in loaded.history] == [
+        "second",
+        "first",
+    ]
+    assert all(
+        entry["dictation_review"]["source_text"] == entry["text"] for entry in loaded.history
+    )

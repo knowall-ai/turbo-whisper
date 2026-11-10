@@ -175,6 +175,7 @@ def test_old_focused_window_result_cannot_overwrite_a_new_recording():
     controller.window = Mock()
     controller.is_recording = True
     controller._recording_token = 2
+    controller._active_session = Mock(writer_id=None)
     controller._on_focused_window_detected("Old editor", 1)
     controller.window.set_status.assert_not_called()
     controller._on_focused_window_detected("Current editor", 2)

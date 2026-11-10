@@ -395,13 +395,13 @@ The user selected automatic replacement of the live text in LibreOffice Writer.
 Current keyboard insertion does not own or read a document range. Safe replacement
 therefore needs an editor integration that verifies the session's range and user
 edits; blind selection/backspacing is not an implementation of that requirement.
-Whether held fragments remain visibly provisional in Writer or move to a separate
-review surface is still unresolved. No final-polishing, held-fragment or automatic
-replacement behavior is implemented or claimed by this change.
+The user then selected visibly provisional text in Writer, with a separate editable
+Review entry. The implemented local finalization and range-ownership contract is
+recorded in `SESSION_LIFECYCLE.adoc` and the README.
 
 An existing local text-model trial on eight authored English examples exposed
 meaning changes, an omitted imperative and a fragment merged into preceding text.
-It was not integrated. No correction engine is configured in the app, and local
-speech recognition alone does not ensure grammatical or sentence-complete output.
-The next step is verified editor range ownership plus a conservative finalization
-contract; a generic rewrite prompt is insufficient. See `SESSION_LIFECYCLE.adoc`.
+That initial unsafe trial was not integrated. The subsequent implementation separates
+classification from conservative correction, validates content independently and
+applies only to verified Writer ranges. Speech recognition alone is not a grammar
+guarantee, and ambiguous/substantive corrections require review. See `SESSION_LIFECYCLE.adoc`.

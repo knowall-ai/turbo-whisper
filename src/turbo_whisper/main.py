@@ -60,6 +60,9 @@ class SignalBridge(QObject):
     live_complete = pyqtSignal(str, int)
     live_error = pyqtSignal(str, int)
     show_status = pyqtSignal(str)
+    session_status = pyqtSignal(str, int)
+    review_applied = pyqtSignal(str, str, str)
+    writer_notice = pyqtSignal(str)
 
 
 class RecordingWindow(QWidget):
@@ -81,6 +84,64 @@ class RecordingWindow(QWidget):
 
     record_requested = pyqtSignal()
     settings_saved = pyqtSignal()
+    open_writer_requested = pyqtSignal()
+    review_requested = pyqtSignal(str, str)
+
+    def _refresh_reviews(self):
+        previous = self.review_list.currentItem()
+        identifier = previous.data(Qt.ItemDataRole.UserRole) if previous else None
+        self.review_list.blockSignals(True)
+        self.review_list.clear()
+        for entry in self.config.history:
+            review = entry.get("dictation_review") if isinstance(entry, dict) else None
+            if review:
+                item = QListWidgetItem(
+                    f"{entry['timestamp'][:19].replace('T', ' ')} · {review['status']}"
+                )
+                item.setData(Qt.ItemDataRole.UserRole, review["writer_id"])
+                self.review_list.addItem(item)
+        self.review_list.blockSignals(False)
+        index = next(
+            (
+                i
+                for i in range(self.review_list.count())
+                if self.review_list.item(i).data(Qt.ItemDataRole.UserRole) == identifier
+            ),
+            0,
+        )
+        self.review_list.setCurrentRow(index)
+        if not self.review_list.count():
+            self.review_apply_btn.setEnabled(False)
+
+    def _selected_review(self):
+        item = self.review_list.currentItem()
+        identifier = item.data(Qt.ItemDataRole.UserRole) if item else None
+        return next(
+            (
+                entry
+                for entry in self.config.history
+                if isinstance(entry, dict)
+                and entry.get("dictation_review", {}).get("writer_id") == identifier
+            ),
+            None,
+        )
+
+    def _select_review(self, index):
+        entry = self._selected_review()
+        self.review_apply_btn.setEnabled(entry is not None)
+        if entry:
+            review = entry["dictation_review"]
+            self.review_original.setPlainText(review["source_text"])
+            self.review_text.setPlainText(review.get("proposed_text") or entry["text"])
+            self.review_feedback.setText(review["message"])
+
+    def _request_review_apply(self):
+        entry = self._selected_review()
+        if entry and self.review_text.toPlainText().strip():
+            self.review_apply_btn.setEnabled(False)
+            self.review_requested.emit(
+                entry["dictation_review"]["writer_id"], self.review_text.toPlainText()
+            )
 
     def _setup_ui(self) -> None:
         from .ui import build_windows
@@ -283,6 +344,20 @@ class RecordingWindow(QWidget):
             ):
                 self.save_feedback.setText("Choose an existing whisper.cpp model file.")
                 return
+        if self.writer_checkbox.isChecked():
+            from .polish import local_endpoint
+
+            try:
+                local_endpoint(self.polish_url_input.text().strip())
+            except ValueError as error:
+                self.save_feedback.setText(str(error))
+                return
+            if not self.polish_model_input.text().strip():
+                self.save_feedback.setText("Choose an existing local correction model.")
+                return
+        self.config.writer_polish = self.writer_checkbox.isChecked()
+        self.config.polish_url = self.polish_url_input.text().strip()
+        self.config.polish_model = self.polish_model_input.text().strip()
         self.config.transcription_backend = backend
         self.config.whisper_cpp_binary = self.cpp_binary_input.text().strip()
         self.config.whisper_cpp_model = self.cpp_model_input.text().strip()
@@ -565,6 +640,9 @@ class TurboWhisper:
         self._sessions = {}
         self._active_session = None
         self._work_queue = SerialWorker()
+        from .writer import WriterBridge
+
+        self.writer = WriterBridge(self.config.writer_python, self.config.writer_binary)
 
         # Connect signals
         self.signals.toggle_recording.connect(self._toggle_recording)
@@ -579,6 +657,11 @@ class TurboWhisper:
         self.window.record_requested.connect(self._toggle_recording)
         self.window.settings_saved.connect(self._reload_hotkey)
         self.signals.hotkey_status.connect(self.window.hotkey_status.setText)
+        self.signals.session_status.connect(self._on_session_status)
+        self.signals.review_applied.connect(self._on_review_applied)
+        self.signals.writer_notice.connect(self.window.review_feedback.setText)
+        self.window.open_writer_requested.connect(self._open_writer)
+        self.window.review_requested.connect(self._apply_review)
 
         # Timer to poll waveform data from recorder thread (avoids cross-thread signal issues)
         self._waveform_timer = QTimer()
@@ -642,6 +725,9 @@ class TurboWhisper:
         settings_action = QAction("Settings...", menu)
         settings_action.triggered.connect(self._show_settings)
         menu.addAction(settings_action)
+        review_action = QAction("Review dictation...", menu)
+        review_action.triggered.connect(self._show_review)
+        menu.addAction(review_action)
 
         menu.addSeparator()
 
@@ -732,6 +818,10 @@ class TurboWhisper:
         # Take focus so user can edit settings fields
         self.window.activateWindow()
 
+    def _show_review(self):
+        self._show_settings()
+        self.window.navigation.setCurrentRow(4)
+
     def _toggle_recording(self) -> None:
         """Toggle recording state."""
         if self.is_recording:
@@ -762,6 +852,12 @@ class TurboWhisper:
         )
         self._sessions[session.token] = session
         self._active_session = session
+        if self.config.writer_polish:
+            session.writer_id = uuid.uuid4().hex
+            session.writer_binding = self.writer.begin(session.writer_id)
+            self.window.hints_label.setToolTip(
+                "Dictating into LibreOffice Writer's active document"
+            )
         self._live_text, self._live_remainder = session.texts, session.remainder
 
         # Find focused app on background thread to keep hotkey/UI responsive
@@ -806,7 +902,7 @@ class TurboWhisper:
                     lambda text: self._deliver_live_phrase(
                         text, token, texts, remainder, auto_paste
                     ),
-                    lambda text: self.signals.live_complete.emit(text, token),
+                    lambda text: self._finish_session(text, session),
                     lambda error: self.signals.live_error.emit(error, token),
                 )
                 session.worker = self._live_session
@@ -832,7 +928,8 @@ class TurboWhisper:
     def _on_focused_window_detected(self, name: str, token: int) -> None:
         """Show which app will receive dictation if still recording current session."""
         if self.is_recording and token == self._recording_token:
-            self.window.hints_label.setToolTip(f"Dictating into {name}")
+            if not self._active_session.writer_id:
+                self.window.hints_label.setToolTip(f"Dictating into {name}")
 
     def _cancel_recording(self) -> None:
         """Cancel only active capture; older stopped sessions keep their results."""
@@ -840,6 +937,7 @@ class TurboWhisper:
         if session is None:
             return
         session.cancel()
+        self._retire_writer(session)
         self._sessions.pop(session.token, None)
         self._active_session = self._live_session = None
         self.is_recording = False
@@ -855,6 +953,22 @@ class TurboWhisper:
         self.window.waveform.set_recording(False)
         self.window.set_recording_hint(recording=False)
         self._update_pending_state()
+
+    def _retire_writer(self, session):
+        if session.writer_id:
+
+            def retire():
+                try:
+                    session.writer_binding.result(timeout=15)
+                    self.writer.call(
+                        "mark",
+                        id=session.writer_id,
+                        message="Recording ended — provisional words retained; edit in Writer",
+                    )
+                except Exception:
+                    pass
+
+            threading.Thread(target=retire, daemon=True).start()
 
     def _update_pending_state(self):
         pending = sum(session.stopped for session in self._sessions.values())
@@ -897,6 +1011,7 @@ class TurboWhisper:
             return
         if not audio_data:
             session.cancel()
+            self._retire_writer(session)
             self._sessions.pop(session.token, None)
             self._update_pending_state()
             self.tray.showMessage(
@@ -935,7 +1050,7 @@ class TurboWhisper:
                     self._deliver_live_phrase(
                         text, session.token, session.texts, session.remainder, session.auto_paste
                     )
-                self.signals.transcription_complete.emit(text, session.token)
+                self._finish_session(text, session)
             except WhisperAPIError as e:
                 self.signals.transcription_error.emit(str(e), session.token)
             except Exception:
@@ -974,6 +1089,17 @@ class TurboWhisper:
                 return
             prefix = " " if texts else ""
             texts.append(text)
+            if session.writer_id:
+                try:
+                    session.writer_binding.result(timeout=15)
+                    if session.cancelled or self._sessions.get(token) is not session:
+                        return
+                    if remainder:
+                        raise RuntimeError("Earlier insertion needs review")
+                    self.writer.call("append", id=session.writer_id, text=prefix + text)
+                except Exception:
+                    remainder.append(text)
+                return
             if auto_paste:
                 try:
                     inserted = (
@@ -988,6 +1114,116 @@ class TurboWhisper:
                 if not inserted:
                     remainder.append(text)
 
+    def _finish_session(self, text, session):
+        if session.cancelled or self._sessions.get(session.token) is not session:
+            return
+        if session.writer_id and text:
+            from .polish import LocalPolisher, PolishResult
+
+            self.signals.session_status.emit("Polishing full dictation", session.token)
+            try:
+                result = LocalPolisher(self.config.polish_url, self.config.polish_model).polish(
+                    text, self.config.language
+                )
+            except Exception:
+                result = PolishResult(
+                    text, "review", "Correction unavailable — original text retained"
+                )
+            if session.cancelled or self._sessions.get(session.token) is not session:
+                return
+            source = text
+            try:
+                session.writer_binding.result(timeout=15)
+                if session.remainder:
+                    raise RuntimeError(
+                        "Some text could not be inserted; full result retained in Review"
+                    )
+                if result.status == "review":
+                    self.writer.call("mark", id=session.writer_id, message=result.message)
+                else:
+                    self.writer.call(
+                        "replace",
+                        id=session.writer_id,
+                        text=result.text,
+                        message=result.message if result.status == "incomplete" else "",
+                    )
+                    text = result.text
+            except Exception as error:
+                from .writer import WriterError
+
+                result.status = "review"
+                result.message = (
+                    str(error)
+                    if isinstance(error, (WriterError, RuntimeError))
+                    else "Writer unavailable — result retained in Review"
+                )
+                try:
+                    self.writer.call("mark", id=session.writer_id, message=result.message)
+                except Exception:
+                    pass
+            session.review = {
+                "writer_id": session.writer_id,
+                "source_text": source,
+                "status": result.status,
+                "message": result.message,
+                "incomplete_tail": result.incomplete_tail,
+                "proposed_text": result.proposed_text or result.text,
+            }
+        elif session.writer_id:
+            self._retire_writer(session)
+        self.signals.transcription_complete.emit(text, session.token)
+
+    def _on_session_status(self, message, token):
+        if not self.is_recording and token in self._sessions:
+            self.window.set_status(message, animate=True)
+
+    def _open_writer(self):
+        def open_document():
+            try:
+                self.writer.call("open")
+                message = "Writer ready — place its caret and start dictation"
+            except Exception:
+                message = "Could not open Writer; check LibreOffice and Python UNO support"
+            self.signals.writer_notice.emit(message)
+
+        threading.Thread(target=open_document, daemon=True).start()
+
+    def _apply_review(self, identifier, text):
+        def apply():
+            error = ""
+            try:
+                self.writer.call("replace", id=identifier, text=text, message="")
+            except Exception as exception:
+                from .writer import WriterError
+
+                error = (
+                    str(exception)
+                    if isinstance(exception, WriterError)
+                    else "Writer unavailable — reviewed text retained"
+                )
+            self.signals.review_applied.emit(identifier, text, error)
+
+        threading.Thread(target=apply, daemon=True).start()
+
+    def _on_review_applied(self, identifier, text, error):
+        if not error:
+            for entry in self.config.history:
+                review = entry.get("dictation_review", {})
+                if review.get("writer_id") == identifier:
+                    entry["text"] = text
+                    review.update(
+                        status="reviewed",
+                        message="Reviewed text applied to Writer",
+                        incomplete_tail="",
+                        proposed_text=text,
+                    )
+                    self.config.save()
+                    self.window._refresh_history()
+                    self.window._refresh_reviews()
+                    break
+        self.window.review_feedback.setText(error or "Reviewed text applied to Writer")
+        self.window.review_apply_btn.setEnabled(True)
+
     def _on_live_complete(self, text: str, token: int) -> None:
         session = self._sessions.pop(token, None)
         if session is None or session.cancelled:
@@ -999,6 +1235,7 @@ class TurboWhisper:
         if session is None:
             return
         session.cancel()
+        self._retire_writer(session)
         if self._active_session is session:
             self._active_session = self._live_session = None
             self.is_recording = False
@@ -1071,15 +1308,25 @@ class TurboWhisper:
 
         if text:
             # Save to history (with audio file if available)
-            self.config.add_to_history(text, audio_file=audio_filename)
+            self.config.add_to_history(text, audio_file=audio_filename, review=session.review)
             self.window._refresh_history()
+            self.window._refresh_reviews()
+            if session.review and not self.window.settings_panel.isVisible():
+                self.window.review_list.setCurrentRow(0)
 
             # Copy to clipboard
             if session.copy_to_clipboard:
                 self.typer.copy_to_clipboard(text)
 
             # Type into focused window (wait for Claude if running)
-            if session.worker is not None:
+            if session.writer_id:
+                self.tray.showMessage(
+                    "Turbo Whisper",
+                    session.review["message"],
+                    QSystemTrayIcon.MessageIcon.Information,
+                    3000,
+                )
+            elif session.worker is not None:
                 if session.remainder:
                     self.typer.copy_to_clipboard(" ".join(session.remainder))
                 self.tray.showMessage(
@@ -1149,6 +1396,7 @@ class TurboWhisper:
         self._sessions.clear()
         self._active_session = self._live_session = None
         self._work_queue.shutdown()
+        self.writer.close()
         self.client.close()
         self.recorder.cleanup()
         self.window.settings_panel.close()

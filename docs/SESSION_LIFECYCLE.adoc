@@ -10,14 +10,14 @@ An empty tap must leave capture ready. Reopening the window must reflect actual
 capture state. Rapid relaunch during startup/shutdown must activate a responsive
 owner or acquire the released lock, without falsely reporting activation.
 
-The related language-quality request remains a separate, incomplete feature:
+The related language-quality request, implemented in the finalization section below, is:
 insert phrases live, polish the entire current session after explicit stop,
 automatically replace its live text in LibreOffice Writer, and hold unfinished
 sentences for completion/review. No document text outside that session is in scope.
 The latest hold preference supersedes the earlier verbatim-finalization preference.
 No wording may be invented to finish a thought. The precise holding surface is
-unresolved. This patch does not claim grammar correction, fragment classification,
-held fragments or editor-range replacement.
+unresolved. These finalization mechanisms were absent at the initial rapid-toggle assessment;
+see the implemented contract below.
 
 == Reproduction and correction
 
@@ -106,13 +106,127 @@ fragments, full text plus an unfinished tail, negation/numbers, imperatives and
 untouched confirmation cases. It corrected one agreement example but singularized
 a plural noun in another, omitted an imperative entirely and merged a protected
 fragment into preceding text. These three policy failures were observed in single
-probes, not population error-rate estimates. No grammar engine was integrated or
-enabled. A successful handful of examples would not provide a general guarantee.
+probes, not population error-rate estimates. That first unsafe trial was not integrated. The subsequent guarded two-stage
+implementation is described below. A handful of examples cannot provide a general guarantee.
 
 For Writer, the next integration should verify a session-owned document range and
 preserve concurrent edits before replacing live text. LibreOffice's documented
 https://api.libreoffice.org/docs/idl/ref/interfacecom_1_1sun_1_1star_1_1text_1_1XTextRange.html[XTextRange]
 can replace a specific range; establishing, tracking and testing that range is
 still required. No LibreOffice bridge or user document was modified in this work.
-The holding/review location and a meaning-preserving correction/validation policy
-must be settled and verified before enabling automatic finalization.
+The subsequent decision keeps unfinished words visible and provisional in Writer,
+with an editable review entry. The finalization implementation follows.
+
+== Finalization implementation brief (2026-11-09)
+
+The user has now explicitly authorized completing and installing this feature.
+Keep unfinished words visible as provisional text in Writer and retain an editable
+review entry in Turbo Whisper. Explicit stop finalizes the entire current session;
+phrase endpoints continue inserting during capture. No surrounding document text
+may be rewritten. A local language endpoint performs completeness classification
+separately from conservative grammar correction. Rejected, unavailable or uncertain
+corrections retain the original text and require review; no invented completions.
+
+Writer mode uses LibreOffice's local document API to bind one text range per
+session, verify its existing content before every write and replace only that range.
+No blind keyboard deletion, automatic document save, remote polishing or paid API
+is involved. A visible annotation distinguishes provisional/review-needed text.
+Manual review can complete the full result and apply it to the same verified range.
+Edited/closed documents must fail safely without retargeting another document.
+
+Acceptance checks: live text exists before stop; polishing covers earlier phrases;
+unfinished tails remain exact and visibly provisional; review completion is applied
+once with no duplication; user edits/other documents stay intact; rapid sessions
+remain isolated; cold/warm local output and the actual installed launcher are tested.
+The failed correction examples from the first assessment remain regression inputs.
+
+
+== Implemented finalization contract and evidence
+
+Writer mode is opt-in for existing/new profiles and enabled in this requested
+workstation installation. It replaces general keyboard delivery with a local UNO
+adapter using LibreOffice's Python. The private named pipe is randomly named and
+had mode 0700 in the native probe. No listening TCP UNO port, macros, extension,
+model download or document save is added. The app removes only its own acceptor
+on shutdown, leaving the user's office process/documents open.
+
+Each capture binds Writer's active document and an initially empty caret range.
+Existing selections and read-only documents are rejected. Incoming phrases append
+to that range before stop. Pending sessions follow prior owned ranges when started
+at the same caret; no inference/text backlog is hidden by discarding audio.
+Every write checks the range against its last delivered content. User edits,
+closed documents and mixed formatting block replacement. A single insertString
+call replaces the verified range, retaining uniform formatting; setString is
+avoided because it removes styles. No backspace, character-count arithmetic or
+focused-window replacement is involved. Review is available from the sidebar/tray.
+
+After explicit stop, a loopback-only local text endpoint first classifies the last
+sentence; only the preceding complete text reaches the copy-editor when the tail
+is unfinished. The app preserves the selected tail exactly. Structured responses,
+independent content-token checks and local-only HTTP (no proxy environment,
+credentials or redirects) reject omissions, changed names/numbers/negation, changed
+tense, currency/emoji loss and broad rewriting. Accepted automatic edits are
+conservative agreement, articles, capitalization and punctuation. Unsupported
+languages, input over 20,000 characters, unavailable engines and rejected outputs
+retain the original for review. The installed existing local model is reused;
+no new weights, service, remote processing or expenditure was introduced.
+
+Statuses distinguish polished, incomplete/provisional, review-needed and explicitly
+reviewed text. Incomplete/review-needed text has a Writer annotation and an editable
+Review entry with the original and suggestion. Apply reviewed text updates the
+same verified range and existing History entry once. Existing History retention
+and private atomic config writes apply; equal words in different Writer sessions
+are not deduplicated. Runtime range bindings deliberately do not survive app restart:
+old review entries remain readable/copyable, without guessing a new destination.
+
+A full pipeline test exposed an additional hallucination from an exactly-zero
+post-endpoint tail. Only that final digital-silence inference is skipped after
+recognized text; the recording still retains every byte. Nonzero low-volume tails
+and initial quiet clips continue reaching inference. Regression cases cover levels
+0, 1 and 50, rather than raising a voice threshold or hiding quiet speech.
+
+Automated checks cover structured/error/redirect responses, full-session scope,
+verbatim tails, conservative grammar, content-loss guards, live-before-stop,
+review application and edit conflicts. Opt-in native tests use a disposable Writer
+profile to exercise actual insertion/replacement, provisional comments, review,
+outside/inside edits, caret movement, selected text, rapid overlapping sessions,
+Unicode, mixed formatting and closed-document isolation. No user documents,
+physical microphone or real desktop keys are used by these checks.
+
+The final local text-model trial matched the expected complete/incomplete status
+on 14 authored cases (one probe each), including six cases not used to tune the
+prompts. It retained content under the independent guard and corrected the earlier
+agreement/imperative failures. These are example checks, not an estimated general
+accuracy rate. The classifier can still be wrong; human review remains necessary
+for ambiguous language or substantive edits.
+
+Actual selected local ASR, local correction model, Qt controller and native Writer
+ran two synthetic-PCM workloads three times each. Live editor contents were checked
+before explicit stop; final Writer text exactly matched History in all six runs.
+Agreement was corrected, all 7/12 recognized words were retained respectively, and
+the unfinished tail stayed exact and annotated. Manual completion removed the
+provisional note and updated one existing entry without duplicate insertion.
+PCM was injected into the capture callback, not played through a physical mic.
+The text model was already resident; only the first app/ASR session was process-cold,
+and filesystem caches were not flushed. Stop-to-final results (seconds):
+
+* Complete result, n=3: mean 2.256; range 1.633–3.316; SD 0.923; SE 0.533.
+* Held tail, n=3: mean 2.575; range 2.466–2.746; SD 0.150; SE 0.0868.
+
+Compact rows and hashes are in `benchmarks/finalization-2026-11-09.json`. These
+measure this added finalization stage end to end; they are not a latency speedup
+claim against a baseline that had no polishing. Earlier recognition omissions,
+continuous-speech limitations and physical desktop acceptance remain as documented.
+
+Final local checks: 174 tests passed; three native opt-in checks were skipped in
+that ordinary run. The two X11 tests passed separately under Xvfb, and the Writer
+integration passed against an isolated native office profile. Writer checks also
+cover sixty empty sessions (bounded retained range state) and private-acceptor
+shutdown observed through a separate connection, while documents remain open.
+Ruff, Black, locked metadata, wheel build/content inspection and whitespace checks
+passed. Hosted CI and native Windows/macOS office integration remain separate.
+The same native Writer checks also passed with visible Writer windows under an
+isolated Xvfb display (Wayland unset, X11 explicitly selected). A fresh observer
+process verifies document survival after acceptor closure: PyUNO can invalidate
+aliased proxies across connections in the original client without closing documents.
+Memory/throughput neutrality and universal grammatical correctness are not claimed.

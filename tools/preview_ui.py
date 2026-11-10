@@ -35,6 +35,24 @@ def render(output):
         app.processEvents()
         app.processEvents()
         assert window.settings_panel.grab().save(str(output / f"{name}.png"))
+    config.history.insert(
+        0,
+        {
+            "text": "I arrived late. Because the train was delayed.",
+            "timestamp": "2026-11-09T12:30:00",
+            "dictation_review": {
+                "writer_id": "synthetic-preview",
+                "status": "incomplete",
+                "source_text": "I arrived late. Because the train was delayed.",
+                "proposed_text": "I arrived late. Because the train was delayed.",
+                "message": "Unfinished sentence — provisional in Writer; complete it here.",
+            },
+        },
+    )
+    window._refresh_reviews()
+    window.navigation.setCurrentRow(4)
+    app.processEvents()
+    assert window.settings_panel.grab().save(str(output / "review.png"))
     window.navigation.setCurrentRow(1)
     window.backend_combo.setCurrentIndex(window.backend_combo.findData("local"))
     app.processEvents()
