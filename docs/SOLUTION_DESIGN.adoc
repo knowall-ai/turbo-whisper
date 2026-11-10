@@ -362,3 +362,46 @@ or model memory budgets on every computer. Percentage-of-PC coverage has not bee
 measured. Platform interfaces remain in the cross-platform test matrix; actual
 native CPU and optional-GPU inference were checked locally. Model, language,
 beam size and audio completeness are unchanged when switching devices.
+
+== Session finalization and rapid-toggle working brief (2026-11-09)
+
+Confirmed user requirements:
+
+* Keep inserting recognized phrases before the speaker stops. Silence-delimited
+  chunks are provisional composition, not a guarantee of complete sentences.
+* An explicit recording stop ends one dictation session. Polishing must consider
+  that entire session, including earlier live phrases, rather than only its tail.
+* Hold unfinished sentences for completion or review. This latest preference
+  supersedes the earlier request to finalize fragments verbatim with a flag.
+  Retain the original words; do not invent an ending or silently lose speech.
+* Preserve names, numbers, negation and intended meaning during any grammar cleanup.
+  Punctuation alone and successful insertion are not grammaticality checks.
+* Accept rapid successive recording start/stop requests while earlier sessions
+  finish, preserve every captured clip, maintain delivery order and session identity,
+  and avoid stale completion callbacks hiding or interrupting a newer recording.
+
+Current implementation: Whisper produces strings; the live worker emits them on
+pause and joins them on stop. There is no grammar checker, sentence-completeness
+validator, revision stage or token-stream presentation. The virtual keyboard only
+delivers text to the focused app. It does not generate, improve or revise language.
+The previous controller refused starts while transcription was pending, and recording
+filenames had only second-level precision. The controller now tracks sessions
+independently and serializes pending inference/delivery without blocking capture.
+Extremely short taps before any audio arrives cannot produce speech, but leave the
+recorder immediately usable. See `SESSION_LIFECYCLE.adoc` for reproductions,
+regression evidence, queue limits and launcher lifecycle behavior.
+
+The user selected automatic replacement of the live text in LibreOffice Writer.
+Current keyboard insertion does not own or read a document range. Safe replacement
+therefore needs an editor integration that verifies the session's range and user
+edits; blind selection/backspacing is not an implementation of that requirement.
+Whether held fragments remain visibly provisional in Writer or move to a separate
+review surface is still unresolved. No final-polishing, held-fragment or automatic
+replacement behavior is implemented or claimed by this change.
+
+An existing local text-model trial on eight authored English examples exposed
+meaning changes, an omitted imperative and a fragment merged into preceding text.
+It was not integrated. No correction engine is configured in the app, and local
+speech recognition alone does not ensure grammatical or sentence-complete output.
+The next step is verified editor range ownership plus a conservative finalization
+contract; a generic rewrite prompt is insufficient. See `SESSION_LIFECYCLE.adoc`.

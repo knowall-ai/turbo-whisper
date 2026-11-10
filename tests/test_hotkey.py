@@ -73,6 +73,16 @@ def test_ctrl_character_and_both_modifier_sides(keyboard):
     released.assert_called_once()
 
 
+def test_fast_repeated_shortcut_cycles_are_not_debounced_away(keyboard):
+    pressed, released = Mock(), Mock()
+    manager = hotkey.HotkeyManager(["ctrl", "w"], pressed, released)
+    manager._on_press(keyboard.Key.ctrl_l)
+    for _ in range(20):
+        manager._on_press(keyboard.KeyCode("w"))
+        manager._on_release(keyboard.KeyCode("w"))
+    assert pressed.call_count == released.call_count == 20
+
+
 def test_evdev_supports_letters_right_modifiers_and_release(monkeypatch):
     ecodes = SimpleNamespace(KEY_LEFTCTRL=1, KEY_RIGHTCTRL=2, KEY_W=3)
     monkeypatch.setitem(sys.modules, "evdev", SimpleNamespace(ecodes=ecodes))

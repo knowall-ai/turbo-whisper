@@ -3,6 +3,7 @@
 import io
 import threading
 import wave
+from concurrent.futures import CancelledError
 
 import numpy as np
 
@@ -30,9 +31,25 @@ class PhraseTranscriber:
         self._cancelled = False
         self._text = []
         self.thread = threading.Thread(target=self._run, daemon=True)
+        self.future = None
 
-    def start(self):
-        self.thread.start()
+    def start(self, executor=None):
+        if executor is None:
+            self.thread.start()
+        else:
+            self.future = executor.submit(self._run)
+
+    def join(self, timeout=None):
+        if self.future is None:
+            self.thread.join(timeout)
+        else:
+            try:
+                self.future.result(timeout=timeout)
+            except CancelledError:
+                pass
+
+    def is_alive(self):
+        return not self.future.done() if self.future is not None else self.thread.is_alive()
 
     def feed(self, pcm):
         # Called by the capture thread; never infer, type or wait here.
@@ -64,6 +81,8 @@ class PhraseTranscriber:
             self._cancelled = True
             self._pending.clear()
             self._condition.notify()
+        if self.future is not None:
+            self.future.cancel()
 
     def _wav(self, pcm):
         output = io.BytesIO()

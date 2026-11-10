@@ -1,5 +1,8 @@
+import io
 import struct
+import threading
 import time
+import wave
 from unittest.mock import Mock
 
 import pytest
@@ -32,9 +35,9 @@ def controller(qapp, monkeypatch):
     sessions = []
     start = live.PhraseTranscriber.start
 
-    def tracked_start(session):
+    def tracked_start(session, *args):
         sessions.append(session)
-        start(session)
+        start(session, *args)
 
     monkeypatch.setattr(live.PhraseTranscriber, "start", tracked_start)
     recorder = Mock(captured_frames=0, capture_error=None)
@@ -54,8 +57,10 @@ def controller(qapp, monkeypatch):
     yield view
     for session in sessions:
         session.cancel()
-        session.thread.join(timeout=2)
-        assert not session.thread.is_alive()
+        session.join(timeout=2)
+        assert not session.is_alive()
+    view._work_queue.shutdown()
+    view._work_queue.thread.join(timeout=2)
     view._live_token += 1
     view._live_session = None
     qapp.processEvents()
@@ -121,7 +126,7 @@ def test_cancel_restart_ignores_late_result_and_session_lists_remain_separate(co
     old_token = controller._live_token
     old_session = controller._live_session
     controller._cancel_recording()
-    old_session.thread.join(timeout=1)
+    old_session.join(timeout=1)
     controller._start_recording()
     controller._on_live_complete("Stale result.", old_token)
     controller._on_live_error("Stale error.", old_token)
@@ -151,3 +156,194 @@ def test_api_live_mode_is_rejected_before_recording_or_http(controller):
     controller.recorder.start.assert_not_called()
     controller.client.prepare_live.assert_not_called()
     assert "local backend" in controller.window.save_feedback.text()
+
+
+def test_rapid_restart_captures_while_previous_session_is_finishing(controller, qapp):
+    entered, release = threading.Event(), threading.Event()
+
+    def delayed(audio):
+        entered.set()
+        assert release.wait(2)
+        return "First thought."
+
+    controller.client.transcribe_live_sync.side_effect = delayed
+    controller._toggle_recording()
+    phrase(controller)
+    assert entered.wait(1)
+    controller._toggle_recording()
+    assert controller.is_transcribing
+    try:
+        controller._toggle_recording()
+        assert controller.is_recording, "A rapid start must not be silently dropped"
+        assert controller.recorder.start.call_count == 2
+    finally:
+        release.set()
+
+
+def test_old_result_cannot_hide_or_reset_new_capture(controller, qapp):
+    entered, release = threading.Event(), threading.Event()
+
+    def delayed(audio):
+        entered.set()
+        assert release.wait(2)
+        return "Previous session."
+
+    controller.client.transcribe_live_sync.side_effect = delayed
+    controller._start_recording()
+    phrase(controller)
+    assert entered.wait(1)
+    controller._stop_recording()
+    controller._start_recording()
+    active = controller._active_session
+    try:
+        release.set()
+        wait(qapp, lambda: len(controller.config.history) == 1)
+        assert controller.config.history[0]["text"] == "Previous session."
+        assert controller.is_recording
+        assert controller.window.isVisible()
+        assert controller._waveform_timer.isActive()
+        assert controller._active_session is active
+        controller._cancel_recording()
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("live", [True, False])
+def test_rapid_sessions_keep_fifo_text_and_unique_audio_files(
+    controller, qapp, tmp_path, monkeypatch, live
+):
+    controller.config.live_transcription = live
+    controller.config.store_recordings = True
+    monkeypatch.setattr(Config, "get_recordings_dir", lambda self: tmp_path)
+    entered, release = threading.Event(), threading.Event()
+    calls = []
+
+    def delayed(audio):
+        calls.append(audio)
+        if len(calls) == 1:
+            entered.set()
+            assert release.wait(2)
+        return f"Session {len(calls)}."
+
+    client = controller.client
+    client.transcribe_live_sync.side_effect = delayed
+    client.transcribe_sync.side_effect = delayed
+    audio = []
+    try:
+        for index in range(5):
+            controller._start_recording()
+            assert controller.is_recording
+            if live:
+                phrase(controller)
+            buffer = io.BytesIO()
+            with wave.open(buffer, "wb") as wav:
+                wav.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+                wav.writeframes(struct.pack("<h", index + 1) * 160)
+            clip = buffer.getvalue()
+            audio.append(clip)
+            controller.recorder.stop.return_value = clip
+            controller._stop_recording()
+            if index == 0:
+                assert entered.wait(1)
+        assert len(controller._sessions) == 5
+        release.set()
+        wait(qapp, lambda: not controller.is_transcribing)
+        assert [item["text"] for item in reversed(controller.config.history)] == [
+            f"Session {index}." for index in range(1, 6)
+        ]
+        assert [call.args[0] for call in controller.typer.type_text.call_args_list] == [
+            f"Session {index}." for index in range(1, 6)
+        ]
+        files = [item["audio_file"] for item in reversed(controller.config.history)]
+        assert len(set(files)) == 5
+        assert [(tmp_path / name).read_bytes() for name in files] == audio
+        if not live:
+            assert calls == audio
+    finally:
+        release.set()
+
+
+def test_empty_taps_then_short_audio_flush_and_cancel_recover(controller, qapp):
+    controller.recorder.stop.return_value = b""
+    for _ in range(10):
+        controller._toggle_recording()
+        assert controller.is_recording
+        controller._toggle_recording()
+        assert not controller.is_recording
+        assert not controller.is_transcribing
+        assert not controller._sessions
+    controller.recorder.stop.return_value = b"RIFF-short-audio"
+    controller._start_recording()
+    feed = controller.recorder.start.call_args.kwargs["frame_callback"]
+    feed(struct.pack("<h", 5000) * 1600)  # 100 ms, no pause endpoint
+    controller._stop_recording()
+    controller._start_recording()
+    controller._cancel_recording()
+    wait(qapp, lambda: len(controller.config.history) == 1)
+    assert controller.config.history[0]["text"] == "First thought."
+    assert not controller.is_transcribing
+    controller._start_recording()
+    assert controller.is_recording
+    controller._cancel_recording()
+
+
+def test_slow_batch_typing_leaves_gui_available_for_next_toggle(controller, qapp):
+    controller.config.live_transcription = False
+    controller.client.transcribe_sync.return_value = "A complete thought."
+    entered, release = threading.Event(), threading.Event()
+
+    def type_slowly(text):
+        entered.set()
+        assert release.wait(2)
+        return True
+
+    controller.typer.type_text.side_effect = type_slowly
+    try:
+        controller._start_recording()
+        controller._stop_recording()
+        assert entered.wait(1), "Typing must run without needing the GUI event loop"
+        controller._toggle_recording()
+        assert controller.is_recording
+        controller._cancel_recording()
+        release.set()
+        wait(qapp, lambda: not controller.is_transcribing)
+    finally:
+        release.set()
+
+
+def test_reopening_window_during_capture_preserves_recording_status(controller, monkeypatch):
+    waveform = Mock()
+    monkeypatch.setattr(controller.window.waveform, "set_recording", waveform)
+    controller._start_recording()
+    controller.window.set_status("Listening · 1.0 s recorded")
+    controller._show_window()
+    assert controller.is_recording
+    waveform.assert_called_with(True)
+    assert "Listening" in controller.window.status_label.text()
+    controller._cancel_recording()
+
+
+def test_old_error_does_not_interrupt_new_capture(controller, qapp):
+    controller._start_recording()
+    old = controller._active_session
+    controller._stop_recording()
+    controller._start_recording()
+    current = controller._active_session
+    controller._on_live_error("Synthetic old failure", old.token)
+    assert controller.is_recording
+    assert controller._active_session is current
+    assert controller._waveform_timer.isActive()
+    assert controller.window.isVisible()
+    controller._cancel_recording()
+
+
+def test_queue_limit_is_visible_and_does_not_capture_unserviceable_audio(controller):
+    from turbo_whisper.sessions import DictationSession
+
+    for token in range(controller._work_queue.capacity):
+        controller._sessions[token] = DictationSession(token, True, True, stopped=True)
+    controller._start_recording()
+    assert not controller.is_recording
+    controller.recorder.start.assert_not_called()
+    assert "queue full" in controller.window.status_label.text().lower()
+    controller._sessions.clear()

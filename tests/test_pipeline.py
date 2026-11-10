@@ -53,6 +53,8 @@ def test_record_transcribe_history_and_clipboard(qapp, monkeypatch):
         typer.type_text.assert_not_called()
         assert controller.window.history_list.count() == 1
     finally:
+        controller._work_queue.shutdown()
+        controller._work_queue.thread.join(timeout=2)
         controller.window.close()
         controller.window.settings_panel.close()
         controller.tray.hide()

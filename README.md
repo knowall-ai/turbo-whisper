@@ -421,6 +421,15 @@ session produces short text, compare that duration with your speaking time and
 use History's copy button for the full transcript (list rows show short previews).
 See [measurements and remaining limits](docs/LOCAL_LATENCY.adoc).
 
+You can start the next recording while earlier sessions finish. Accepted sessions
+are processed and inserted in order; the app reports when its 20-session queue is
+full. A tap that ends before audio arrives leaves the recorder ready for the next
+start. Cancel affects the active recording. See the
+[session lifecycle evidence and finalization limitations](docs/SESSION_LIFECYCLE.adoc).
+Live phrases currently receive speech-recognizer punctuation; grammar polishing,
+held incomplete sentences and automatic replacement in a document editor are not
+implemented.
+
 ## faster-whisper local models (no server)
 
 From this repository, launch with the optional inference runtime:

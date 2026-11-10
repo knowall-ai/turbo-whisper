@@ -1,0 +1,118 @@
+= Rapid recording sessions and finalization assessment
+
+== Problem and acceptance criteria (2026-11-09)
+
+The user reports that rapid recording/app on/off cycles fail. A new start must
+be accepted while the previous stopped recording is processing, within an explicit
+bounded queue. Each accepted session must retain its own audio and result, deliver
+in order, and leave newer capture untouched when older work completes or fails.
+An empty tap must leave capture ready. Reopening the window must reflect actual
+capture state. Rapid relaunch during startup/shutdown must activate a responsive
+owner or acquire the released lock, without falsely reporting activation.
+
+The related language-quality request remains a separate, incomplete feature:
+insert phrases live, polish the entire current session after explicit stop,
+automatically replace its live text in LibreOffice Writer, and hold unfinished
+sentences for completion/review. No document text outside that session is in scope.
+The latest hold preference supersedes the earlier verbatim-finalization preference.
+No wording may be invented to finish a thought. The precise holding surface is
+unresolved. This patch does not claim grammar correction, fragment classification,
+held fragments or editor-range replacement.
+
+== Reproduction and correction
+
+At baseline `d79126d`, `_start_recording` returns whenever `is_transcribing` is true.
+Removing that guard alone is unsafe: a global live token rejects earlier callbacks,
+a shared pending filename can associate the wrong audio, and earlier completion
+hides the window even during newer capture. Batch typing also runs on the Qt
+thread, delaying subsequent toggles. Second-resolution filenames collide.
+
+Each recording now owns its token, completion state, audio filename and text lists.
+One daemon worker serializes inference and insertion; microphone capture remains
+independent. Live workers retain incoming PCM while waiting for their turn. This
+does not accelerate the recognizer: sustained overload still increases waiting
+time. At most 20 accepted unfinished sessions are retained; further starts receive
+an explicit queue-full status before opening the microphone. This is a bounded
+session count, not a byte/memory or real-time throughput guarantee. Cancel removes
+only active capture. Quitting cancels queued work and closes the activation server.
+
+Audio filenames have UUID suffixes. Saved data is the WAV already returned by the
+recorder; the previous save path wrapped that WAV in a second header. Reopening the
+window preserves its capture state instead of displaying Ready during recording.
+
+The activation client previously returned success merely because a Qt dispatcher
+existed, even if its socket could not connect. It now requires an acknowledgment
+sent after window activation. The lock path retries for up to five seconds across
+startup/shutdown races, then exits with a truthful retry message if still blocked.
+No running instance is killed and no lock is bypassed. This is a recovery bound,
+not a user-provided latency target.
+
+== Evidence
+
+* Before implementation, the rapid-restart regression failed because the next
+  capture never started. Missing-socket and lock-release launcher regressions also
+  failed, respectively returning false success and exiting before lock release.
+* An unchanged source archive at `d79126d` and candidate ran the same five-session
+  controller workload three times. A controlled first-inference barrier ensures
+  all start requests occur while earlier processing is pending, avoiding hardware
+  timing confounders. Baseline accepted/inferred/inserted one of five each time;
+  candidate accepted/inferred/inserted all five each time, with five History results.
+  Counts are deterministic; no inference speedup, SD or SE is claimed.
+* Confirmation checks use live and batch routes, five distinct saved clips,
+  cancel/new capture, old failures, ten empty taps and a 100 ms PCM tail without a
+  pause endpoint. They enforce FIFO results, unique files, byte-for-byte saved WAV,
+  no duplicate typing, and no old completion hiding or resetting current capture.
+* A real PipeWire null-monitor stress probe reused one recorder for 25 sessions:
+  five repetitions each at requested durations 25, 75, 150, 300 and 500 ms.
+  Every stop released its child and reader. All 25 ms taps correctly returned no
+  audio; all longer sessions captured frames. These silent monitor probes establish
+  lifecycle/readiness, not physical microphone pickup or intelligible short speech.
+  Per-duration stop means were 1.145, 1.192, 1.186, 1.205 and 1.230 ms;
+  sample SDs were 0.0337, 0.0445, 0.0372, 0.0276 and 0.0470 ms; SEs were
+  0.0151, 0.0199, 0.0166, 0.0123 and 0.0210 ms (n=5 per duration).
+  The overall observed stop range was 1.113–1.298 ms. Capture code is unchanged
+  in this patch; these are stress observations, not baseline-relative gains.
+* Private subprocess tests exercise a real Qt activation server/acknowledgment,
+  delayed server startup and an exiting process's real lock. No user's app, lock,
+  microphone or keyboard is used. Fast shortcut cycles exercise 20 press/releases.
+
+Verification risk: application runtime, capture/session state, native launcher IPC
+and Qt UI. Relevant full regression, isolated X11 and packaging checks are required.
+The final local suite passed 144 tests with two explicitly isolated X11 tests
+skipped; those two passed separately under Xvfb. Ruff, Black, source/wheel build,
+wheel-content inspection and whitespace checks passed.
+The runtime here is Linux, Nix Python 3.13.17 and Qt 6.11.2; existing cached tools
+are used because a clean uv PyAudio build lacks host PortAudio headers. No new
+dependencies, models, services or expenditure were added. Other OS microphone and
+input permissions, physical short utterances and user acceptance remain unverified.
+Earlier real local-inference/end-to-editor evidence is in `LOCAL_LATENCY.adoc`.
+
+== Language and delivery findings
+
+Whisper returns text strings. The live worker emits pause-delimited strings and
+joins the full session at explicit stop. It does not stream individual model
+tokens, validate grammar or distinguish a sentence from a punctuated fragment.
+The virtual keyboard only inserts into another application; it does not improve
+language or identify an owned document range for revisions.
+
+Four locally generated, authored speech probes used the existing local recognizer.
+It preserved the words, including an agreement error and both alternatives in a
+spoken revision. Every result ended in punctuation, including the incomplete
+subordinate clause. Punctuation therefore did not establish grammatical completeness.
+
+An eight-example authored-text trial used an already running local language model;
+no user speech, documents or transcripts were sent. The trial covered agreement,
+fragments, full text plus an unfinished tail, negation/numbers, imperatives and
+untouched confirmation cases. It corrected one agreement example but singularized
+a plural noun in another, omitted an imperative entirely and merged a protected
+fragment into preceding text. These three policy failures were observed in single
+probes, not population error-rate estimates. No grammar engine was integrated or
+enabled. A successful handful of examples would not provide a general guarantee.
+
+For Writer, the next integration should verify a session-owned document range and
+preserve concurrent edits before replacing live text. LibreOffice's documented
+https://api.libreoffice.org/docs/idl/ref/interfacecom_1_1sun_1_1star_1_1text_1_1XTextRange.html[XTextRange]
+can replace a specific range; establishing, tracking and testing that range is
+still required. No LibreOffice bridge or user document was modified in this work.
+The holding/review location and a meaning-preserving correction/validation policy
+must be settled and verified before enabling automatic finalization.
