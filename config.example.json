@@ -1,7 +1,11 @@
 {
   "api_url": "https://api.openai.com/v1/audio/transcriptions",
   "api_key": "sk-your-api-key-here",
-  "hotkey": ["alt", "space"],
+  "hotkey": [
+    "alt",
+    "space"
+  ],
+  "push_to_talk": false,
   "sample_rate": 16000,
   "channels": 1,
   "chunk_size": 1024,
@@ -14,6 +18,26 @@
   "auto_paste": true,
   "copy_to_clipboard": true,
   "language": "en",
+  "transcription_timeout": 30.0,
   "history": [],
-  "history_max": 20
+  "history_max": 20,
+  "api_model": "whisper-1",
+  "claude_integration": false,
+  "transcription_backend": "api",
+  "local_model": "base",
+  "local_device": "cpu",
+  "local_compute_type": "int8",
+  "local_files_only": false,
+  "live_transcription": false,
+  "writer_polish": false,
+  "polish_url": "http://127.0.0.1:8080/v1/chat/completions",
+  "polish_model": "",
+  "writer_python": "",
+  "writer_binary": "",
+  "whisper_cpp_binary": "whisper-cli",
+  "whisper_cpp_model": "",
+  "whisper_cpp_device": 0,
+  "whisper_cpp_timeout": 120.0,
+  "whisper_cpp_use_gpu": false,
+  "whisper_cpp_require_gpu": false
 }

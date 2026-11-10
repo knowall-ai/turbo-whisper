@@ -1,0 +1,88 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Lint and package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv python install 3.12
+      - name: Check locked development tools
+        run: |
+          uv lock --check
+          uvx --from ruff==0.14.3 ruff check src tests tools
+          uvx --from black==25.9.0 black --check src tests tools
+      - name: Build source archive and wheel
+        run: uv build --python 3.12
+      - name: Inspect built wheel
+        run: uv run --no-project --python 3.12 python tools/check_wheel.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
+  test:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-14]
+        python: ['3.10', '3.12']
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Linux build and Qt dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y portaudio19-dev libegl1 libopengl0 libxcb-cursor0 libxkbcommon-x11-0 xvfb
+      - name: macOS audio build dependencies
+        if: runner.os == 'macOS'
+        run: brew install portaudio
+      - name: Install locked project and tests
+        shell: bash
+        run: |
+          uv python install '${{ matrix.python }}'
+          uv sync --locked --extra dev --python '${{ matrix.python }}'
+      - name: Regression and UI tests
+        run: uv run --no-sync pytest -q
+      - name: Real X11 grab and release regression
+        if: runner.os == 'Linux'
+        env:
+          TURBO_WHISPER_TEST_X11: '1'
+        run: xvfb-run -a uv run --no-sync pytest -q tests/test_x11_integration.py
+      - name: Render UI states
+        if: runner.os == 'Linux' && matrix.python == '3.12'
+        run: uv run --no-sync python tools/preview_ui.py --output ui-previews
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: runner.os == 'Linux' && matrix.python == '3.12'
+        with:
+          name: ui-previews
+          path: ui-previews/*.png
+          if-no-files-found: error
+  ci-ok:
+    name: ci-ok
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    if: always()
+    needs: [quality, test]
+    steps:
+      - name: Require every job to pass
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          TESTS: ${{ needs.test.result }}
+        run: test "$QUALITY" = success && test "$TESTS" = success

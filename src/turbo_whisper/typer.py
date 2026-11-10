@@ -1,5 +1,6 @@
 """Auto-type functionality - cross-platform using PyAutoGUI and evdev."""
 
+import os
 import platform
 import shutil
 import subprocess
@@ -180,7 +181,8 @@ class Typer:
             return True
         except Exception as e:
             print(f"PyAutoGUI typing error: {e}")
-            return self.copy_to_clipboard(text)
+            self.copy_to_clipboard(text)
+            return False
 
     def _type_linux(self, text: str) -> bool:
         """Type text on Linux using evdev UInput."""
@@ -191,9 +193,40 @@ class Typer:
 
         if self._evdev_available and self._uinput:
             try:
-                return self._type_evdev(text)
+                if self._type_evdev(text):
+                    return True
             except Exception as e:
                 print(f"evdev typing failed: {e}")
+
+        # X11: prefer xdotool (reliable; avoids pyautogui/tkinter quirks).
+        # --clearmodifiers releases any held modifiers (e.g. a lingering Super)
+        # so the typed letters aren't interpreted as window-manager shortcuts.
+        wayland = os.environ.get("XDG_SESSION_TYPE") == "wayland" or bool(
+            os.environ.get("WAYLAND_DISPLAY")
+        )
+        if not wayland and shutil.which("xdotool"):
+            try:
+                subprocess.run(
+                    [
+                        "xdotool",
+                        "type",
+                        "--clearmodifiers",
+                        "--delay",
+                        str(round(self._typing_delay * 1000)),
+                        "--",
+                        text,
+                    ],
+                    check=True,
+                    timeout=max(10, min(120, len(text) * self._typing_delay + 5)),
+                )
+                return True
+            except Exception as e:
+                print(f"xdotool typing failed: {e}")
+
+        # X11 cannot insert into native Wayland windows. Leave a truthful clipboard fallback.
+        if wayland:
+            self.copy_to_clipboard(text)
+            return False
 
         # Fallback to PyAutoGUI (works on X11)
         try:
@@ -207,7 +240,7 @@ class Typer:
         # Last resort: clipboard
         if self.copy_to_clipboard(text):
             print("Text copied to clipboard - press Ctrl+V to paste")
-            return True
+            return False
 
         return False
 
@@ -216,6 +249,9 @@ class Typer:
         import time
 
         ecodes = self._ecodes
+        if any(char not in self._key_map for char in text):
+            # Never silently lose accented or non-Latin characters.
+            return False
 
         for char in text:
             if char in self._key_map:

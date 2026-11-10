@@ -41,6 +41,10 @@ htmlcov/
 config.json
 .env
 .env.local
+.intel-config/
+.latency-bench/
 
 # Claude Code local settings (machine-specific)
 .claude/settings.local.json
+
+.local-config/

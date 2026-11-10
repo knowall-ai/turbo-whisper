@@ -205,7 +205,7 @@ sudo udevadm trigger
 
 === Current Implementation
 
-Turbo Whisper uses **pynput** for global hotkeys. On Wayland, pynput works through XWayland compatibility layer, which is more reliable than the experimental xdg-desktop-portal GlobalShortcuts API.
+Turbo Whisper prefers the desktop GlobalShortcuts portal on Wayland, with non-exclusive evdev fallback when input devices are already readable. X11 uses a server-side key grab with pynput fallback; macOS and Windows use pynput. The application never changes input permissions.
 
 == Window Focus Management
 
@@ -258,3 +258,150 @@ The application uses file locking (`fcntl.flock`) to ensure only one instance ru
 
 * Linux: `$XDG_RUNTIME_DIR/turbo-whisper.lock`
 * Fallback: `/tmp/turbo-whisper.lock`
+
+== Local inference backend
+
+The `transcription_backend` configuration selects `api` (the backwards-compatible
+default) or `local`. `WhisperClient` routes both synchronous and asynchronous calls;
+async local calls run in a worker thread. The recording pipeline already calls the
+synchronous entry point from its background thread, keeping Qt responsive during
+model downloads and inference.
+
+`local.py` lazily imports the optional faster-whisper runtime. It accepts WAV bytes
+in memory, loads a named model or converted model folder, applies voice activity
+detection, and consumes all output segments before returning plain text. One model
+is cached per client and reloaded when model/device/precision/download policy changes.
+Loading and inference are serialized. Local failures never fall back to HTTP.
+
+CPU/int8 is the portable default on Linux, Windows, and macOS. CUDA is an opt-in
+NVIDIA backend; GPU and Metal acceleration are not supported by this engine.
+`local_files_only` prohibits model downloads; it requires cached weights or a local
+converted model folder. Model weights are not distributed with Turbo Whisper.
+The separately installed runtime is pinned in `requirements-local.txt`; the desktop
+dependency lockfile is unchanged. Local inference has no HTTP timeout.
+
+== whisper.cpp CPU / GPU
+
+`transcription_backend: "whisper_cpp"` routes WAV recordings to an installed
+`whisper-cli` subprocess. Vulkan acceleration uses the existing GPU runtime; the
+application neither installs drivers nor changes the host. The CLI receives an
+explicit model path, language, GPU device index, and a temporary JSON output path.
+Default recorder audio is validated as mono 16 kHz PCM16 before starting it.
+
+The subprocess has a bounded `whisper_cpp_timeout`, and a private temporary
+directory is removed on success, invalid output, process error, and timeout.
+Arguments are passed as a list without a shell. Output parsing returns only
+transcription text; runtime logs are not surfaced as user transcripts or errors.
+When `whisper_cpp_require_gpu` is explicitly enabled, a GPU initialization log is
+required; a build advertising Vulkan alone is not evidence of GPU execution.
+No API fallback is performed. Batch mode loads models per request.
+
+`TURBO_WHISPER_CONFIG` optionally selects an explicit config file, without changing
+where recordings are stored. `tools/run-local` uses an ignored project profile,
+initialized with the workstation's existing large-v3 weights. Other installs can
+select their own executable and model in Connection settings. Existing API and
+faster-whisper configurations retain their behavior.
+
+== Local live phrases and capture integrity
+
+`live_transcription` is opt-in and defaults to false. The controller starts capture
+and model preparation independently. `PhraseTranscriber` receives every PCM block,
+uses a conservative quiet interval as an endpoint hint (0.6 s below 0.004 RMS),
+and transcribes complete phrases on one background worker. It never deletes quiet
+audio or splits continuous speech at an arbitrary duration. Stop flushes all remaining
+PCM; capture retains its complete recording separately for the existing audio-history
+policy. A sound quieter than the endpoint hint can still be transcribed at stop.
+
+One inference may be in flight and one pending region is coalesced as more audio
+arrives. There is no queue of duplicate snapshots. Pending audio can still grow if
+the model cannot keep up; no real-time throughput guarantee is made. Phrase insertion
+also runs off Qt, is serialized, honors the existing Claude-ready integration, and
+stops automatic insertion after a failure. Combined successful text is saved once,
+and finalization does not type phrases a second time. Session tokens reject late
+results after cancellation/restart. Native keystrokes already in progress cannot be
+retracted. Settings are disabled during capture/finalization to keep one session's
+model, device and delivery policy consistent.
+
+For whisper.cpp live mode, an owned `whisper-server` child reuses the same selected
+weights and GPU. It binds only to 127.0.0.1 with a random request path; requests ignore
+proxy environment variables and do not follow redirects. GPU initialization must
+still be confirmed. Beam size and best-of are explicitly 5 to match the CLI, since
+server defaults differ. Logs are drained without storing recognized words. Server
+segment whitespace is normalized to the CLI's space-joined dictation format. Model
+settings changes, failures, timeout and application exit close the owned worker;
+memory remains resident between successful sessions. There is no remote fallback.
+The upstream request contract was checked against
+https://github.com/ggml-org/whisper.cpp/blob/master/examples/server/server.cpp[server.cpp]
+and the installed 1.9.5-dev runtime was exercised directly.
+
+Linux capture requests 20 ms PipeWire/Pulse buffering instead of the default buffer.
+On stop the reader drains the terminated child's stdout to EOF, including short
+final blocks. PyAudio overflow and early capture-child exit are errors rather than
+successful truncated recordings. The HUD changes from Starting microphone to actual
+captured duration after blocks arrive; it does not infer speech recognition from
+waveform sensitivity. All speech remains explicitly started/stopped by the user.
+
+The Qt scroll-reset timer is parented to its page so pending navigation cannot access
+a page already destroyed during repeated sessions. Measurements, acceptance criteria,
+regression coverage and unverified surfaces are in `LOCAL_LATENCY.adoc`.
+
+
+== Portable local defaults
+
+New whisper.cpp profiles set `whisper_cpp_use_gpu: false` and
+`whisper_cpp_require_gpu: false`. Both batch CLI and resident worker receive `-ng`
+in CPU mode. Optional acceleration sets GPU use true; the runtime may fall back to
+CPU unless the user explicitly requires acceleration. Existing explicit GPU-only
+profiles migrate their acceleration choice instead of silently switching devices.
+The UI disables incompatible strict-GPU controls when CPU mode is selected.
+
+The supported design target is common 64-bit Windows, Linux and macOS machines,
+using CPU inference with an appropriate local model. GPU backends depend on the
+installed runtime and are optional. CPU support does not promise identical speed
+or model memory budgets on every computer. Percentage-of-PC coverage has not been
+measured. Platform interfaces remain in the cross-platform test matrix; actual
+native CPU and optional-GPU inference were checked locally. Model, language,
+beam size and audio completeness are unchanged when switching devices.
+
+== Session finalization and rapid-toggle working brief (2026-11-09)
+
+Confirmed user requirements:
+
+* Keep inserting recognized phrases before the speaker stops. Silence-delimited
+  chunks are provisional composition, not a guarantee of complete sentences.
+* An explicit recording stop ends one dictation session. Polishing must consider
+  that entire session, including earlier live phrases, rather than only its tail.
+* Hold unfinished sentences for completion or review. This latest preference
+  supersedes the earlier request to finalize fragments verbatim with a flag.
+  Retain the original words; do not invent an ending or silently lose speech.
+* Preserve names, numbers, negation and intended meaning during any grammar cleanup.
+  Punctuation alone and successful insertion are not grammaticality checks.
+* Accept rapid successive recording start/stop requests while earlier sessions
+  finish, preserve every captured clip, maintain delivery order and session identity,
+  and avoid stale completion callbacks hiding or interrupting a newer recording.
+
+Current implementation: Whisper produces strings; the live worker emits them on
+pause and joins them on stop. There is no grammar checker, sentence-completeness
+validator, revision stage or token-stream presentation. The virtual keyboard only
+delivers text to the focused app. It does not generate, improve or revise language.
+The previous controller refused starts while transcription was pending, and recording
+filenames had only second-level precision. The controller now tracks sessions
+independently and serializes pending inference/delivery without blocking capture.
+Extremely short taps before any audio arrives cannot produce speech, but leave the
+recorder immediately usable. See `SESSION_LIFECYCLE.adoc` for reproductions,
+regression evidence, queue limits and launcher lifecycle behavior.
+
+The user selected automatic replacement of the live text in LibreOffice Writer.
+Current keyboard insertion does not own or read a document range. Safe replacement
+therefore needs an editor integration that verifies the session's range and user
+edits; blind selection/backspacing is not an implementation of that requirement.
+The user then selected visibly provisional text in Writer, with a separate editable
+Review entry. The implemented local finalization and range-ownership contract is
+recorded in `SESSION_LIFECYCLE.adoc` and the README.
+
+An existing local text-model trial on eight authored English examples exposed
+meaning changes, an omitted imperative and a fragment merged into preceding text.
+That initial unsafe trial was not integrated. The subsequent implementation separates
+classification from conservative correction, validates content independently and
+applies only to verified Writer ranges. Speech recognition alone is not a grammar
+guarantee, and ambiguous/substantive corrections require review. See `SESSION_LIFECYCLE.adoc`.

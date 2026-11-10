@@ -44,3 +44,13 @@ See `CLAUDE.md` for the module layout, how to kill stray instances, and the `sg 
 ## Reporting security issues
 
 Please do not open public issues for vulnerabilities. See [SECURITY.md](SECURITY.md).
+
+## Verification
+
+Run `uv run pytest -q`, `uv run ruff check src tests tools`,
+`uv run black --check src tests tools`, `uv build`, and
+`uv run --no-project python tools/check_wheel.py`. CI also runs the X11
+regressions under isolated Xvfb and tests Python 3.10/3.12 on all three platforms.
+Never set `TURBO_WHISPER_TEST_X11=1` on your real desktop; that suite synthesizes
+keystrokes and must run inside Xvfb. Generate synthetic screenshots with
+`uv run python tools/preview_ui.py`. No real API key or microphone is required.

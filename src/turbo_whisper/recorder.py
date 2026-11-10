@@ -1,6 +1,7 @@
 """Audio recording functionality."""
 
 import io
+import shutil
 import subprocess
 import sys
 import threading
@@ -36,6 +37,7 @@ def get_pipewire_sources() -> list[dict]:
                 current = {"id": line.split("#")[1]}
             elif line.startswith("Name:"):
                 current["name"] = line.split(":", 1)[1].strip()
+                current["id"] = current["name"]
             elif line.startswith("Description:"):
                 desc = line.split(":", 1)[1].strip()
                 current["description"] = desc
@@ -56,7 +58,8 @@ class AudioRecorder:
 
     def __init__(self, config: Config):
         self.config = config
-        self.audio = pyaudio.PyAudio()
+        self.audio = None
+        self._process = None
         self.stream = None
         self.frames: list[bytes] = []
         self.is_recording = False
@@ -64,6 +67,9 @@ class AudioRecorder:
         self._actual_sample_rate = config.sample_rate
         self.waveform_buffer = deque(maxlen=100)
         self._record_thread = None
+        self.frame_callback = None
+        self.capture_error = None
+        self.captured_frames = 0
 
     def get_input_devices(self) -> list[dict]:
         """Get list of available input devices."""
@@ -83,6 +89,8 @@ class AudioRecorder:
                 ]
 
         # Fallback to PyAudio
+        if self.audio is None:
+            self.audio = pyaudio.PyAudio()
         devices = []
         for i in range(self.audio.get_device_count()):
             try:
@@ -100,37 +108,81 @@ class AudioRecorder:
                 pass
         return devices
 
-    def start(self, level_callback=None) -> None:
+    def start(self, level_callback=None, frame_callback=None) -> None:
         """Start recording audio."""
         if self.is_recording:
             return
+        if self._record_thread and self._record_thread.is_alive():
+            raise RuntimeError("The previous microphone session has not stopped")
 
         self.level_callback = level_callback
+        self.frame_callback = frame_callback
+        self.capture_error = None
+        self.captured_frames = 0
         self.frames = []
+        self.waveform_buffer.clear()
         self.is_recording = True
 
-        # Use simple defaults - let PyAudio/PipeWire handle device routing
-        self.stream = self.audio.open(
-            format=pyaudio.paInt16,
-            channels=self.config.channels,
-            rate=self.config.sample_rate,
-            input=True,
-            frames_per_buffer=self.config.chunk_size,
-        )
+        self._actual_sample_rate = self.config.sample_rate
+        if sys.platform.startswith("linux") and shutil.which("parec"):
+            command = [
+                "parec",
+                "--raw",
+                "--format=s16le",
+                f"--rate={self.config.sample_rate}",
+                f"--channels={self.config.channels}",
+                "--latency-msec=20",
+                "--process-time-msec=20",
+            ]
+            if self.config.input_device_index is not None:
+                command.append(f"--device={self.config.input_device_index}")
+            try:
+                self._process = subprocess.Popen(
+                    command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+                )
+            except OSError:
+                self.is_recording = False
+                raise
+        else:
+            if self.audio is None:
+                self.audio = pyaudio.PyAudio()
+            selected = self.config.input_device_index
+            try:
+                self.stream = self.audio.open(
+                    format=pyaudio.paInt16,
+                    channels=self.config.channels,
+                    rate=self.config.sample_rate,
+                    input=True,
+                    frames_per_buffer=self.config.chunk_size,
+                    input_device_index=selected if isinstance(selected, int) else None,
+                )
+            except Exception:
+                self.is_recording = False
+                raise
 
         self._record_thread = threading.Thread(target=self._record_loop, daemon=True)
         self._record_thread.start()
 
     def _record_loop(self) -> None:
         """Recording loop."""
-        frame_count = 0
-        while self.is_recording and self.stream:
+        # Drain the child's pipe to EOF after termination. Checking is_recording
+        # here used to discard all but one of the blocks buffered at stop time.
+        process, stream = self._process, self.stream
+        while process or (self.is_recording and stream):
             try:
-                data = self.stream.read(self.config.chunk_size, exception_on_overflow=False)
+                if process:
+                    data = process.stdout.read(self.config.chunk_size * self.config.channels * 2)
+                else:
+                    data = stream.read(self.config.chunk_size, exception_on_overflow=True)
+                if not data:
+                    if self.is_recording and process and isinstance(process.poll(), int):
+                        self.capture_error = "The microphone stopped before recording finished"
+                    break
                 self.frames.append(data)
-                frame_count += 1
-
-                audio_data = np.frombuffer(data, dtype=np.int16)
+                self.captured_frames += len(data) // (self.config.channels * 2)
+                if self.frame_callback:
+                    self.frame_callback(data)
+                audio_data = np.frombuffer(data, dtype=np.int16).astype(np.float32)
                 level = np.abs(audio_data).mean() / 32768.0
 
                 self.waveform_buffer.append(level)
@@ -138,34 +190,51 @@ class AudioRecorder:
                 if self.level_callback:
                     self.level_callback(level, list(self.waveform_buffer))
 
-            except Exception as e:
-                print(f"Recording error: {e}")
+            except Exception:
+                self.capture_error = "Microphone capture failed; the recording may be incomplete"
                 break
 
     def stop(self) -> bytes:
         """Stop recording and return WAV data."""
         self.is_recording = False
 
+        if self._process:
+            self._process.terminate()
+            try:
+                self._process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                self._process.kill()
+                self._process.wait(timeout=1)
         if self._record_thread:
-            self._record_thread.join(timeout=1.0)
+            self._record_thread.join(timeout=2.0)
+            if self._record_thread.is_alive():
+                raise RuntimeError("The microphone did not stop; the recording may be incomplete")
+        if self._process:
+            self._process.stdout.close()
+            self._process = None
 
         if self.stream:
             self.stream.stop_stream()
             self.stream.close()
             self.stream = None
 
+        if self.capture_error:
+            raise RuntimeError(self.capture_error)
+        if not self.frames:
+            return b""
         wav_buffer = io.BytesIO()
         with wave.open(wav_buffer, "wb") as wf:
             wf.setnchannels(self.config.channels)
-            wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
+            wf.setsampwidth(2)
             wf.setframerate(self._actual_sample_rate)
             wf.writeframes(b"".join(self.frames))
 
         return wav_buffer.getvalue()
 
     def cleanup(self) -> None:
-        """Clean up audio resources."""
-        self.is_recording = False
-        if self.stream:
-            self.stream.close()
-        self.audio.terminate()
+        """Release only this recorder's stream and child process."""
+        if self.is_recording or self._process or self.stream:
+            self.stop()
+        if self.audio is not None:
+            self.audio.terminate()
+            self.audio = None

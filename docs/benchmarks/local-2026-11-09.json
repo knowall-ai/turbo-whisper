@@ -1,0 +1,384 @@
+{
+  "date": "2026-11-09",
+  "platform": "Linux x86_64; Python 3.13.17; Qt 6.11.2; isolated Xvfb",
+  "hardware": "Ryzen 9 5900X, 24 logical CPUs, 64 GB installed RAM, Vulkan-capable desktop GPU",
+  "engine": "whisper.cpp 1.9.5-dev, existing full large-v3 ggml weights, Vulkan device 0, beam/best-of 5, language en",
+  "format": "16 kHz mono PCM16; 1024-frame reads; synthetic espeak-ng at 155 words/min; identical WAV hashes per comparison",
+  "baseline_manifest_sha256": "ccddf42ef4b2058a4c69fd13c8621f9fca22cb155f05fa365ee01bc8d3ee0adc",
+  "baseline_head": "04fdfa66f4f62016a3964dff08ed01fd737c2411",
+  "cold_definition": "First request in a fresh process; OS/model/shader caches not forcibly cleared. Warm means repeated sessions in the same app; baseline still reloads the model.",
+  "groups": {
+    "baseline": [
+      {
+        "run": 0,
+        "mode": "batch",
+        "workload": "tuning",
+        "model_state": "process-cold",
+        "audio_sha256": "db972fd711f8e10162f9fa8fd948ca5fcc2f87d2828dc7bb7f755aa1d4facbb5",
+        "audio_seconds": 9.778625,
+        "captured_seconds": 10.0,
+        "first_capture_seconds": 1.9933752899523824,
+        "signal_onset_delay_seconds": 1.7861543749459088,
+        "first_usable_text_seconds": 19.21325666096527,
+        "text_before_stop": false,
+        "final_from_speech_end_seconds": 9.329739658045582,
+        "final_from_stop_seconds": 9.179049267084338,
+        "reference_words": 20,
+        "transcript_words": 20,
+        "word_errors": 0,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      },
+      {
+        "run": 1,
+        "mode": "batch",
+        "workload": "tuning",
+        "model_state": "repeated-session",
+        "audio_sha256": "db972fd711f8e10162f9fa8fd948ca5fcc2f87d2828dc7bb7f755aa1d4facbb5",
+        "audio_seconds": 9.778625,
+        "captured_seconds": 10.0,
+        "first_capture_seconds": 1.9830575590021908,
+        "signal_onset_delay_seconds": 1.7806435719830915,
+        "first_usable_text_seconds": 13.826891186996363,
+        "text_before_stop": false,
+        "final_from_speech_end_seconds": 3.95248254109174,
+        "final_from_stop_seconds": 3.8015067010419443,
+        "reference_words": 20,
+        "transcript_words": 20,
+        "word_errors": 0,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      },
+      {
+        "run": 2,
+        "mode": "batch",
+        "workload": "tuning",
+        "model_state": "repeated-session",
+        "audio_sha256": "db972fd711f8e10162f9fa8fd948ca5fcc2f87d2828dc7bb7f755aa1d4facbb5",
+        "audio_seconds": 9.778625,
+        "captured_seconds": 10.0,
+        "first_capture_seconds": 1.9832586069824174,
+        "signal_onset_delay_seconds": 1.7812862979480997,
+        "first_usable_text_seconds": 14.240842867991887,
+        "text_before_stop": false,
+        "final_from_speech_end_seconds": 4.367219039937481,
+        "final_from_stop_seconds": 4.215737132006325,
+        "reference_words": 20,
+        "transcript_words": 20,
+        "word_errors": 0,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      }
+    ],
+    "candidate": [
+      {
+        "run": 0,
+        "mode": "live",
+        "workload": "tuning",
+        "model_state": "process-cold",
+        "audio_sha256": "db972fd711f8e10162f9fa8fd948ca5fcc2f87d2828dc7bb7f755aa1d4facbb5",
+        "audio_seconds": 9.778625,
+        "captured_seconds": 10.14,
+        "first_capture_seconds": 0.10006287496071309,
+        "signal_onset_delay_seconds": 0.13790376600809395,
+        "first_usable_text_seconds": 7.337571960990317,
+        "text_before_stop": true,
+        "final_from_speech_end_seconds": 1.2212743849959224,
+        "final_from_stop_seconds": 1.069235977018252,
+        "reference_words": 20,
+        "transcript_words": 20,
+        "word_errors": 0,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      },
+      {
+        "run": 1,
+        "mode": "live",
+        "workload": "tuning",
+        "model_state": "repeated-session",
+        "audio_sha256": "db972fd711f8e10162f9fa8fd948ca5fcc2f87d2828dc7bb7f755aa1d4facbb5",
+        "audio_seconds": 9.778625,
+        "captured_seconds": 10.14,
+        "first_capture_seconds": 0.10108143999241292,
+        "signal_onset_delay_seconds": 0.1369367999723181,
+        "first_usable_text_seconds": 4.536891339928843,
+        "text_before_stop": true,
+        "final_from_speech_end_seconds": 1.1692867110250518,
+        "final_from_stop_seconds": 1.0179770489921793,
+        "reference_words": 20,
+        "transcript_words": 20,
+        "word_errors": 0,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      },
+      {
+        "run": 2,
+        "mode": "live",
+        "workload": "tuning",
+        "model_state": "repeated-session",
+        "audio_sha256": "db972fd711f8e10162f9fa8fd948ca5fcc2f87d2828dc7bb7f755aa1d4facbb5",
+        "audio_seconds": 9.778625,
+        "captured_seconds": 10.14,
+        "first_capture_seconds": 0.10302846098784357,
+        "signal_onset_delay_seconds": 0.13646518194582313,
+        "first_usable_text_seconds": 4.524028381914832,
+        "text_before_stop": true,
+        "final_from_speech_end_seconds": 1.157326638000086,
+        "final_from_stop_seconds": 1.0053006790112704,
+        "reference_words": 20,
+        "transcript_words": 20,
+        "word_errors": 0,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      }
+    ],
+    "confirmation_baseline": [
+      {
+        "run": 0,
+        "mode": "batch",
+        "workload": "confirmation",
+        "model_state": "process-cold",
+        "audio_sha256": "e2981d97de5496ada58da8ce51dac5c3ec4b80ff291a8bd5fe682873d55b06a1",
+        "audio_seconds": 9.9838125,
+        "captured_seconds": 10.0,
+        "first_capture_seconds": 1.9883428250905126,
+        "signal_onset_delay_seconds": 1.78347152704373,
+        "first_usable_text_seconds": 13.869827263057232,
+        "text_before_stop": false,
+        "final_from_speech_end_seconds": 3.820244001923129,
+        "final_from_stop_seconds": 3.6683363219490275,
+        "reference_words": 22,
+        "transcript_words": 22,
+        "word_errors": 0,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      }
+    ],
+    "confirmation_candidate": [
+      {
+        "run": 0,
+        "mode": "live",
+        "workload": "confirmation",
+        "model_state": "process-cold",
+        "audio_sha256": "e2981d97de5496ada58da8ce51dac5c3ec4b80ff291a8bd5fe682873d55b06a1",
+        "audio_seconds": 9.9838125,
+        "captured_seconds": 10.36,
+        "first_capture_seconds": 0.10228797607123852,
+        "signal_onset_delay_seconds": 0.1406519120791927,
+        "first_usable_text_seconds": 3.714575493009761,
+        "text_before_stop": true,
+        "final_from_speech_end_seconds": 1.2298762839054689,
+        "final_from_stop_seconds": 1.0781365339644253,
+        "reference_words": 22,
+        "transcript_words": 22,
+        "word_errors": 0,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      }
+    ],
+    "minute_baseline": [
+      {
+        "run": 0,
+        "mode": "batch",
+        "workload": "minute",
+        "model_state": "process-cold",
+        "audio_sha256": "6b48850f68c9e200617c58b0ae88290261ef40ccb529a3a28b35523a9e413a00",
+        "audio_seconds": 52.927625,
+        "captured_seconds": 52.0,
+        "first_capture_seconds": 1.9945055349962786,
+        "signal_onset_delay_seconds": 1.7891888410085812,
+        "first_usable_text_seconds": 67.39551086397842,
+        "text_before_stop": false,
+        "final_from_speech_end_seconds": 14.456130825914443,
+        "final_from_stop_seconds": 14.3042846909957,
+        "reference_words": 144,
+        "transcript_words": 134,
+        "word_errors": 10,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      }
+    ],
+    "minute_candidate": [
+      {
+        "run": 0,
+        "mode": "live",
+        "workload": "minute",
+        "model_state": "process-cold",
+        "audio_sha256": "6b48850f68c9e200617c58b0ae88290261ef40ccb529a3a28b35523a9e413a00",
+        "audio_seconds": 52.927625,
+        "captured_seconds": 53.28,
+        "first_capture_seconds": 0.09908449393697083,
+        "signal_onset_delay_seconds": 0.13815330900251865,
+        "first_usable_text_seconds": 58.740964852971956,
+        "text_before_stop": false,
+        "final_from_speech_end_seconds": 8.104291822994128,
+        "final_from_stop_seconds": 7.953868697048165,
+        "reference_words": 144,
+        "transcript_words": 134,
+        "word_errors": 10,
+        "inserted_matches_transcript": true,
+        "first_marker": true,
+        "last_marker": true
+      }
+    ]
+  },
+  "statistics": {
+    "baseline": {
+      "all": {
+        "first_capture_seconds": {
+          "n": 3,
+          "mean": 1.9865638186456636,
+          "min": 1.9830575590021908,
+          "max": 1.9933752899523824,
+          "sample_sd": 0.0058997636473234515,
+          "standard_error": 0.003406230129937363
+        },
+        "signal_onset_delay_seconds": {
+          "n": 3,
+          "mean": 1.7826947482923667,
+          "min": 1.7806435719830915,
+          "max": 1.7861543749459088,
+          "sample_sd": 0.003013309908215251,
+          "standard_error": 0.0017397352866598418
+        },
+        "first_usable_text_seconds": {
+          "n": 3,
+          "mean": 15.760330238651173,
+          "min": 13.826891186996363,
+          "max": 19.21325666096527,
+          "sample_sd": 2.9974763813891645,
+          "standard_error": 1.7305937956845796
+        },
+        "final_from_stop_seconds": {
+          "n": 3,
+          "mean": 5.732097700044203,
+          "min": 3.8015067010419443,
+          "max": 9.179049267084338,
+          "sample_sd": 2.9923240201596766,
+          "standard_error": 1.7276190785417724
+        }
+      },
+      "warm": {
+        "first_capture_seconds": {
+          "n": 2,
+          "mean": 1.9831580829923041,
+          "min": 1.9830575590021908,
+          "max": 1.9832586069824174,
+          "sample_sd": 0.00014216239016207104,
+          "standard_error": 0.00010052399011328815
+        },
+        "signal_onset_delay_seconds": {
+          "n": 2,
+          "mean": 1.7809649349655956,
+          "min": 1.7806435719830915,
+          "max": 1.7812862979480997,
+          "sample_sd": 0.00045447588830192315,
+          "standard_error": 0.00032136298250406975
+        },
+        "first_usable_text_seconds": {
+          "n": 2,
+          "mean": 14.033867027494125,
+          "min": 13.826891186996363,
+          "max": 14.240842867991887,
+          "sample_sd": 0.29270804071550544,
+          "standard_error": 0.20697584049776194
+        },
+        "final_from_stop_seconds": {
+          "n": 2,
+          "mean": 4.008621916524135,
+          "min": 3.8015067010419443,
+          "max": 4.215737132006325,
+          "sample_sd": 0.29290514670873946,
+          "standard_error": 0.20711521548219022
+        }
+      }
+    },
+    "candidate": {
+      "all": {
+        "first_capture_seconds": {
+          "n": 3,
+          "mean": 0.10139092531365652,
+          "min": 0.10006287496071309,
+          "max": 0.10302846098784357,
+          "sample_sd": 0.0015068214871466479,
+          "standard_error": 0.0008699637912248294
+        },
+        "signal_onset_delay_seconds": {
+          "n": 3,
+          "mean": 0.13710191597541174,
+          "min": 0.13646518194582313,
+          "max": 0.13790376600809395,
+          "sample_sd": 0.0007333679137466494,
+          "standard_error": 0.0004234101624166623
+        },
+        "first_usable_text_seconds": {
+          "n": 3,
+          "mean": 5.466163894277997,
+          "min": 4.524028381914832,
+          "max": 7.337571960990317,
+          "sample_sd": 1.6206996878012825,
+          "standard_error": 0.935711401027613
+        },
+        "final_from_stop_seconds": {
+          "n": 3,
+          "mean": 1.0308379016739007,
+          "min": 1.0053006790112704,
+          "max": 1.069235977018252,
+          "sample_sd": 0.033852351935812215,
+          "standard_error": 0.01954466450284313
+        }
+      },
+      "warm": {
+        "first_capture_seconds": {
+          "n": 2,
+          "mean": 0.10205495049012825,
+          "min": 0.10108143999241292,
+          "max": 0.10302846098784357,
+          "sample_sd": 0.0013767517489815934,
+          "standard_error": 0.0009735104977153241
+        },
+        "signal_onset_delay_seconds": {
+          "n": 2,
+          "mean": 0.13670099095907062,
+          "min": 0.13646518194582313,
+          "max": 0.1369367999723181,
+          "sample_sd": 0.0003334843046644171,
+          "standard_error": 0.00023580901324748993
+        },
+        "first_usable_text_seconds": {
+          "n": 2,
+          "mean": 4.530459860921837,
+          "min": 4.524028381914832,
+          "max": 4.536891339928843,
+          "sample_sd": 0.009095484837825294,
+          "standard_error": 0.006431479007005691
+        },
+        "final_from_stop_seconds": {
+          "n": 2,
+          "mean": 1.0116388640017249,
+          "min": 1.0053006790112704,
+          "max": 1.0179770489921793,
+          "sample_sd": 0.00896354717433029,
+          "standard_error": 0.006338184990454464
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Small samples; n=1 per confirmation/long workload; no SE estimated for n=1.",
+    "Fixed baseline-then-candidate order; normal workstation load and cache state are confounders. No physical microphone or real user audio.",
+    "Continuous speech with no pause gets no early phrase. Both models omit the same 10 words of the repeated long passage; normalized transcripts match.",
+    "Native Wayland insertion, Windows/macOS hardware and actual faster-whisper runtime are unverified; mocks cover interfaces.",
+    "Resident mode holds RAM/VRAM until exit. Peak device memory and CPU utilization were not profiled; no resource-neutrality claim.",
+    "The final lifecycle-only cleanup registration test was added after timing runs; capture, inference, endpoint and typing behavior were unchanged."
+  ]
+}

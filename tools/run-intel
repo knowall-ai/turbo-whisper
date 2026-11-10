@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Compatibility alias for existing saved profiles.
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+export TURBO_WHISPER_CONFIG="${TURBO_WHISPER_CONFIG:-$PWD/.intel-config/config.json}"
+export TURBO_WHISPER_CPP_MODEL="${TURBO_WHISPER_CPP_MODEL:-/archipool/chatterbox/models/whisper.cpp/ggml-large-v3.bin}"
+exec ./tools/run-local "$@"

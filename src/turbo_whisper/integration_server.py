@@ -61,9 +61,7 @@ class IntegrationServer:
         """Start the integration server. Returns True if successful."""
         try:
             self.server = HTTPServer(("127.0.0.1", self.port), IntegrationHandler)
-            self.thread = threading.Thread(
-                target=self.server.serve_forever, daemon=True
-            )
+            self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
             self.thread.start()
             return True
         except OSError as e:

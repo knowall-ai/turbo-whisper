@@ -2,7 +2,7 @@
 
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
 from typing import TypedDict
@@ -11,6 +11,7 @@ from typing import TypedDict
 def _default_hotkey() -> list[str]:
     """Return platform-appropriate default hotkey."""
     import sys
+
     if sys.platform == "win32":
         # Alt+Space conflicts with Windows window menu
         # Ctrl+Shift+Space conflicts with various apps
@@ -26,6 +27,7 @@ class HistoryEntry(TypedDict, total=False):
     text: str
     timestamp: str  # ISO format
     audio_file: str  # Filename (not full path) of WAV recording
+    dictation_review: dict  # Original/proposed result and private runtime Writer binding
 
 
 @dataclass
@@ -33,13 +35,40 @@ class Config:
     """Application configuration."""
 
     # API settings
-    api_url: str = "https://whisper.weeksfamily.me/v1/audio/transcriptions"
+    api_url: str = "https://api.openai.com/v1/audio/transcriptions"
+    api_model: str = "whisper-1"
     api_key: str = ""
+
+    # Local inference is optional; existing installs continue using their API.
+    transcription_backend: str = "api"
+    local_model: str = "base"
+    local_device: str = "cpu"
+    local_compute_type: str = "int8"
+    local_files_only: bool = False
+    live_transcription: bool = False  # Deliver complete local phrases during recording
+    writer_polish: bool = False  # Optional tracked Writer delivery and local finalization
+    polish_url: str = "http://127.0.0.1:8080/v1/chat/completions"
+    polish_model: str = ""
+    writer_python: str = ""  # Empty: find a local Python with LibreOffice UNO support
+    writer_binary: str = ""  # Empty: find LibreOffice/soffice
+
+    # whisper.cpp supports CPU inference and optional GPU acceleration.
+    whisper_cpp_binary: str = "whisper-cli"
+    whisper_cpp_model: str = ""
+    whisper_cpp_device: int = 0
+    whisper_cpp_timeout: float = 120.0
+    whisper_cpp_use_gpu: bool = False
+    whisper_cpp_require_gpu: bool = False
 
     # Hotkey settings (using pynput key names)
     # Default: F8 on Windows (Alt+Space conflicts with window menu)
     #          Alt+Space on Linux/macOS
     hotkey: list[str] = field(default_factory=_default_hotkey)
+
+    # Dictation interaction mode
+    # False: press once to start, press again to stop
+    # True: hold keys to record, release to stop
+    push_to_talk: bool = False
 
     # Audio settings
     sample_rate: int = 16000
@@ -60,8 +89,13 @@ class Config:
     language: str = "en"
     typing_delay_ms: int = 5  # Milliseconds between keystrokes (increase if terminal freezes)
 
+    # Transcription settings
+    transcription_timeout: float = (
+        30.0  # HTTP read/write timeout in seconds; raise for long recordings
+    )
+
     # Claude Code integration
-    claude_integration: bool = True  # Enable integration server for Claude Code
+    claude_integration: bool = False  # Enable integration server for Claude Code
     claude_integration_port: int = 7878  # Port for integration HTTP server
     claude_wait_timeout: float = 30.0  # Max seconds to wait for Claude ready signal
 
@@ -73,6 +107,7 @@ class Config:
     def get_recordings_dir(self) -> Path:
         """Get the directory for storing audio recordings."""
         import sys
+
         if sys.platform == "win32":
             config_dir = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
         else:
@@ -81,7 +116,7 @@ class Config:
         recordings_dir.mkdir(parents=True, exist_ok=True)
         return recordings_dir
 
-    def add_to_history(self, text: str, audio_file: str | None = None) -> None:
+    def add_to_history(self, text: str, audio_file: str | None = None, review=None) -> None:
         """Add a transcription to history.
 
         Args:
@@ -92,7 +127,7 @@ class Config:
             # Remove if already exists (move to top) and delete old audio
             for i, entry in enumerate(self.history):
                 entry_text = entry["text"] if isinstance(entry, dict) else entry
-                if entry_text == text:
+                if review is None and entry_text == text:
                     # Delete old audio file if it exists
                     old_audio = entry.get("audio_file") if isinstance(entry, dict) else None
                     if old_audio:
@@ -108,6 +143,8 @@ class Config:
             }
             if audio_file:
                 entry["audio_file"] = audio_file
+            if review is not None:
+                entry["dictation_review"] = review
             self.history.insert(0, entry)
             # Trim to max size and clean up old recordings
             self._cleanup_old_recordings()
@@ -134,6 +171,10 @@ class Config:
     def get_config_path(cls) -> Path:
         """Get the configuration file path."""
         import sys
+
+        if override := os.environ.get("TURBO_WHISPER_CONFIG"):
+            return Path(override).expanduser().resolve()
+
         if sys.platform == "win32":
             # Windows: use APPDATA
             config_dir = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
@@ -162,7 +203,19 @@ class Config:
                             # New format: dict with text and timestamp
                             migrated.append(entry)
                     data["history"] = migrated
-                return cls(**data)
+                known = {item.name for item in fields(cls)}
+                # Older whisper.cpp profiles always requested acceleration, with
+                # optional CPU fallback. Preserve that choice on upgrade.
+                if "whisper_cpp_use_gpu" not in data and (
+                    data.get("transcription_backend") == "whisper_cpp"
+                    or data.get("whisper_cpp_require_gpu")
+                ):
+                    data["whisper_cpp_use_gpu"] = True
+                config = cls(**{key: value for key, value in data.items() if key in known})
+                config._unknown_fields = {
+                    key: value for key, value in data.items() if key not in known
+                }
+                return config
             except (json.JSONDecodeError, TypeError) as e:
                 print(f"Warning: Could not load config: {e}")
 
@@ -173,5 +226,19 @@ class Config:
         config_path = self.get_config_path()
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(config_path, "w") as f:
-            json.dump(self.__dict__, f, indent=2)
+        import tempfile
+
+        data = {
+            **getattr(self, "_unknown_fields", {}),
+            **{key: value for key, value in self.__dict__.items() if not key.startswith("_")},
+        }
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile("w", dir=config_path.parent, delete=False) as output:
+                temporary = Path(output.name)
+                json.dump(data, output, indent=2)
+                output.write("\n")
+            os.replace(temporary, config_path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
