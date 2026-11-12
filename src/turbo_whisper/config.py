@@ -60,6 +60,13 @@ class Config:
     language: str = "en"
     typing_delay_ms: int = 5  # Milliseconds between keystrokes (increase if terminal freezes)
 
+    # X11 text injection: clipboard paste is layout-proof (text travels
+    # verbatim); keycode simulation swaps letters on non-QWERTY layouts
+    # (QWERTZ y/z) because the injector's XKB view can differ from the
+    # focused window's view.
+    x11_paste_mode: bool = True
+    x11_paste_hotkey: list[str] = field(default_factory=lambda: ["ctrl", "shift", "v"])
+
     # Claude Code integration
     claude_integration: bool = True  # Enable integration server for Claude Code
     claude_integration_port: int = 7878  # Port for integration HTTP server
