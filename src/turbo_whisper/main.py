@@ -972,7 +972,9 @@ class TurboWhisper:
         # Components
         self.recorder = AudioRecorder(self.config)
         self.client = WhisperClient(self.config)
-        self.typer = Typer(typing_delay_ms=self.config.typing_delay_ms)
+        self.typer = Typer(typing_delay_ms=self.config.typing_delay_ms,
+                           paste_mode=self.config.x11_paste_mode,
+                           paste_hotkey=self.config.x11_paste_hotkey)
         self.signals = SignalBridge()
 
         # UI

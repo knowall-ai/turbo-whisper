@@ -10,11 +10,14 @@ SYSTEM = platform.system()
 class Typer:
     """Types text into the currently focused window."""
 
-    def __init__(self, typing_delay_ms: int = 5):
+    def __init__(self, typing_delay_ms: int = 5, paste_mode: bool = True,
+                 paste_hotkey: list[str] | None = None):
         self.system = SYSTEM
         self._uinput = None
         self._evdev_available = False
         self._typing_delay = typing_delay_ms / 1000.0  # Convert to seconds
+        self.paste_mode = paste_mode
+        self.paste_hotkey = paste_hotkey or ["ctrl", "shift", "v"]
 
         if self.system == "Linux":
             self._setup_linux()
@@ -183,11 +186,49 @@ class Typer:
             return self.copy_to_clipboard(text)
 
     def _type_linux(self, text: str) -> bool:
-        """Type text on Linux using evdev UInput."""
+        """Type text on Linux: xdotool on X11, evdev UInput on Wayland."""
+        import os
+        import subprocess
         import time
 
         # Small delay to let focus settle after our window hides
         time.sleep(0.05)
+
+        if self.paste_mode and not os.environ.get("WAYLAND_DISPLAY"):
+            # Layout-proof path: put the text on the clipboard and send the
+            # paste hotkey. No keycode resolution involved, so non-QWERTY
+            # layouts (QWERTZ, AZERTY, dead keys, IMEs) are unaffected.
+            try:
+                # Set both selections: targets paste from either.
+                ok = 0
+                for sel in ("clipboard", "primary"):
+                    cp = subprocess.run(
+                        ["xclip", "-selection", sel, "-i"],
+                        input=text.encode(), timeout=5,
+                    )
+                    if cp.returncode == 0:
+                        ok += 1
+                if ok:
+                    args = ["xdotool", "key", "--clearmodifiers", "+".join(self.paste_hotkey)]
+                    pk = subprocess.run(args, timeout=5)
+                    if pk.returncode == 0:
+                        return True
+                print(f"paste returned cp={cp.returncode}")
+            except Exception as e:
+                print(f"paste typing failed: {e}")
+
+        if not os.environ.get("WAYLAND_DISPLAY"):
+            # X11: xdotool resolves each character through its own XKB view...
+            try:
+                result = subprocess.run(
+                    ["xdotool", "type", "--clearmodifiers", text],
+                    timeout=15,
+                )
+                if result.returncode == 0:
+                    return True
+                print(f"xdotool exited {result.returncode}")
+            except Exception as e:
+                print(f"xdotool typing failed: {e}")
 
         if self._evdev_available and self._uinput:
             try:
@@ -195,7 +236,7 @@ class Typer:
             except Exception as e:
                 print(f"evdev typing failed: {e}")
 
-        # Fallback to PyAutoGUI (works on X11)
+        # Fallback to PyAutoGUI
         try:
             import pyautogui
 
